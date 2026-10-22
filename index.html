@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mapa Comercial</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+/* Layout: mapa ocupa a tela; painel inferior com raio, filtros e lista por distância. */
+:root {
+  --bg: #f3f5f4; --surface: #ffffff; --fg: #18211d; --muted: #5b6862; --line: #d9e0dc;
+  --accent: #0f6b5a; --accent-fg: #ffffff;
+  --ativo: #1f8a4c; --cancelado: #d0661b; --cnpj: #7a4fc4; --outros: #8a948f;
+  --display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #101614; --surface: #18201d; --fg: #e6ece9; --muted: #9aa8a1; --line: #2b3632;
+    --accent: #3fb59a; --accent-fg: #06221b; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--body); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Login */
+#login { min-height: 100%; display: grid; place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left)); }
+.cartao { width: 100%; max-width: 360px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; display: grid; gap: 14px; }
+.marca { font: 700 26px/1 var(--display); letter-spacing: .01em; margin: 0; }
+.marca small { display: block; font: 500 13px/1.3 var(--body); color: var(--muted); margin-top: 6px; letter-spacing: 0; }
+label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+input { padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.primario { background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 8px; padding: 12px; font-weight: 600; }
+.erro { color: #c0392b; font-size: 14px; margin: 0; }
+
+/* App */
+#app { height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
+header { display: flex; align-items: center; gap: 10px; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
+header h1 { font: 700 20px/1 var(--display); margin: 0; flex: 1; }
+.fantasma { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+#mapa { min-height: 0; }
+.painel { background: var(--surface); border-top: 1px solid var(--line); max-height: 46vh; display: grid; grid-template-rows: auto auto 1fr;
+  padding: 10px max(16px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); gap: 8px; }
+.linha { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 5px 11px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
+.ponto { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.resumo { font: 600 15px/1.2 var(--display); letter-spacing: .02em; text-transform: uppercase; color: var(--muted); font-variant-numeric: tabular-nums; }
+#lista { overflow-y: auto; min-height: 0; margin: 0; padding: 0; list-style: none; }
+#lista li { display: grid; grid-template-columns: 10px 1fr auto; gap: 10px; align-items: start; padding: 9px 0; border-top: 1px solid var(--line); cursor: pointer; }
+#lista li .ponto { margin-top: 6px; }
+.nome { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.sub { color: var(--muted); font-size: 13px; }
+.dist { font: 600 14px/1.2 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vazio { color: var(--muted); padding: 10px 0; }
+.popup h3 { font: 700 16px/1.2 var(--display); margin: 0 0 4px; }
+.popup p { margin: 2px 0; }
+.popup a { color: var(--accent); font-weight: 600; }
+.selo { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: 4px; color: #fff; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface); color: var(--fg); }
+.voce { width: 16px; height: 16px; border-radius: 50%; background: #1d6fe0; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(29,111,224,.35); }
+</style>
+</head>
+<body>
+
+<section id="login">
+  <form class="cartao" id="form-login">
+    <h1 class="marca">Mapa Comercial<small>Clientes ativos, cancelados e oportunidades ao seu redor.</small></h1>
+    <label>E-mail <input id="email" type="email" autocomplete="username" required></label>
+    <label>Senha <input id="senha" type="password" autocomplete="current-password" required></label>
+    <button class="primario" type="submit" id="entrar">Entrar</button>
+    <p class="erro" id="erro-login" hidden></p>
+  </form>
+</section>
+
+<section id="app" hidden>
+  <header>
+    <h1>Mapa Comercial</h1>
+    <button class="fantasma" id="btn-local" type="button">Minha localização</button>
+    <button class="fantasma" id="btn-sair" type="button">Sair</button>
+  </header>
+  <div id="mapa"></div>
+  <div class="painel">
+    <div class="linha" id="raios" role="group" aria-label="Raio da busca"></div>
+    <div class="linha" id="filtros" role="group" aria-label="Filtrar por situação"></div>
+    <div>
+      <div class="resumo" id="resumo">Buscando sua localização…</div>
+      <ul id="lista"></ul>
+    </div>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// Configuração do projeto. A chave publicável é feita para ficar em páginas públicas:
+// sem login, as regras do banco (RLS) não liberam nenhum dado.
+const SUPABASE_URL = "https://wdqlucvooagrjnztkphb.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_OleKOs9bUR9VQdmGN1qQ1w_ANFI_Liz";
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const STATUS = {
+  ATIVO: { nome: "Ativos", cor: "var(--ativo)", hex: "#1f8a4c" },
+  CANCELADO: { nome: "Cancelados", cor: "var(--cancelado)", hex: "#d0661b" },
+  CANCELADO_COM_CNPJ_ATIVO: { nome: "Cancelado, CNPJ ativo", cor: "var(--cnpj)", hex: "#7a4fc4" },
+  OUTROS: { nome: "Outros", cor: "var(--outros)", hex: "#8a948f" },
+};
+const RAIOS = [500, 1000, 2000, 5000];
+const PRECISAO_APROX = { cep: "localização pelo CEP", localidade: "localização pelo bairro", logradouro: "localização pela rua" };
+
+let estado = { raio: 1000, filtros: new Set(["ATIVO", "CANCELADO", "CANCELADO_COM_CNPJ_ATIVO"]), centro: null, dados: [] };
+let mapa, camada, marcaVoce, circulo;
+
+const $ = (id) => document.getElementById(id);
+const brl = (v) => v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const dataBR = (d) => d ? d.split("-").reverse().join("/") : "—";
+const km = (m) => m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// Login
+$("form-login").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("entrar").disabled = true; $("erro-login").hidden = true;
+  const { error } = await db.auth.signInWithPassword({ email: $("email").value.trim(), password: $("senha").value });
+  $("entrar").disabled = false;
+  if (error) { $("erro-login").textContent = "E-mail ou senha incorretos. Confira e tente de novo."; $("erro-login").hidden = false; return; }
+  abrirApp();
+});
+$("btn-sair").addEventListener("click", async () => { await db.auth.signOut(); location.reload(); });
+db.auth.getSession().then(({ data }) => { if (data.session) abrirApp(); });
+
+function abrirApp() {
+  if (mapa) return;
+  $("login").hidden = true; $("app").hidden = false;
+  mapa = L.map("mapa", { zoomControl: false }).setView([-23.55, -46.63], 13);
+  L.control.zoom({ position: "topright" }).addTo(mapa);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(mapa);
+  camada = L.layerGroup().addTo(mapa);
+  mapa.on("click", (e) => buscar(e.latlng.lat, e.latlng.lng, false));
+  montarControles();
+  localizar();
+}
+
+function montarControles() {
+  $("raios").innerHTML = RAIOS.map((r) => `<button type="button" class="chip" data-raio="${r}" aria-pressed="${r === estado.raio}">${km(r)}</button>`).join("");
+  $("raios").onclick = (e) => {
+    const b = e.target.closest("[data-raio]"); if (!b) return;
+    estado.raio = +b.dataset.raio;
+    [...$("raios").children].forEach((c) => c.setAttribute("aria-pressed", c === b));
+    if (estado.centro) buscar(estado.centro[0], estado.centro[1], false);
+  };
+  $("filtros").innerHTML = Object.entries(STATUS).map(([k, s]) =>
+    `<button type="button" class="chip" data-st="${k}" aria-pressed="${estado.filtros.has(k)}"><span class="ponto" style="background:${s.cor}"></span>${s.nome} <span data-n="${k}"></span></button>`).join("");
+  $("filtros").onclick = (e) => {
+    const b = e.target.closest("[data-st]"); if (!b) return;
+    const k = b.dataset.st;
+    estado.filtros.has(k) ? estado.filtros.delete(k) : estado.filtros.add(k);
+    b.setAttribute("aria-pressed", estado.filtros.has(k));
+    desenhar();
+  };
+  $("btn-local").onclick = localizar;
+}
+
+function localizar() {
+  if (!navigator.geolocation) { $("resumo").textContent = "Toque no mapa para buscar ao redor de um ponto."; return; }
+  $("resumo").textContent = "Buscando sua localização…";
+  navigator.geolocation.getCurrentPosition(
+    (p) => buscar(p.coords.latitude, p.coords.longitude, true),
+    () => { $("resumo").textContent = "Localização não liberada. Toque no mapa para buscar ao redor de um ponto."; },
+    { enableHighAccuracy: true, timeout: 12000 }
+  );
+}
+
+async function buscar(lat, lon, ehVoce) {
+  estado.centro = [lat, lon];
+  if (ehVoce) {
+    if (marcaVoce) marcaVoce.remove();
+    marcaVoce = L.marker([lat, lon], { icon: L.divIcon({ className: "", html: '<div class="voce"></div>', iconSize: [16, 16] }), interactive: false }).addTo(mapa);
+  }
+  if (circulo) circulo.remove();
+  circulo = L.circle([lat, lon], { radius: estado.raio, color: "#0f6b5a", weight: 1, fillOpacity: 0.05 }).addTo(mapa);
+  mapa.fitBounds(circulo.getBounds(), { padding: [10, 10] });
+  $("resumo").textContent = "Buscando…";
+  const { data, error } = await db.rpc("locais_proximos", { p_lat: lat, p_lon: lon, p_raio_m: estado.raio });
+  if (error) { $("resumo").textContent = "Não foi possível buscar: " + error.message; return; }
+  estado.dados = data || [];
+  desenhar();
+}
+
+function desenhar() {
+  camada.clearLayers();
+  const visiveis = estado.dados.filter((d) => estado.filtros.has(d.status_local));
+  for (const k of Object.keys(STATUS)) {
+    const n = estado.dados.filter((d) => d.status_local === k).length;
+    const el = document.querySelector(`[data-n="${k}"]`); if (el) el.textContent = n ? `· ${n}` : "";
+  }
+  const ativos = estado.dados.filter((d) => d.status_local === "ATIVO");
+  const mens = ativos.reduce((s, d) => s + Number(d.mensalidade_ativa || 0), 0);
+  $("resumo").textContent = `${visiveis.length} locais em ${km(estado.raio)} · ${brl(mens)}/mês ativos`;
+  const itens = [];
+  visiveis.forEach((d, i) => {
+    const s = STATUS[d.status_local] || STATUS.OUTROS;
+    const m = L.circleMarker([d.latitude, d.longitude], { radius: 7, color: "#fff", weight: 2, fillColor: s.hex, fillOpacity: 0.95 })
+      .bindPopup(popup(d, s)).addTo(camada);
+    itens.push(`<li data-i="${i}"><span class="ponto" style="background:${s.cor}"></span><div><div class="nome">${esc(d.cliente || d.endereco)}</div><div class="sub">${esc(d.endereco)} · ${esc(d.bairro)}${d.vendedor ? " · " + esc(d.vendedor) : ""}</div></div><div class="dist">${km(d.distancia_m)}</div></li>`);
+    d._m = m;
+  });
+  $("lista").innerHTML = itens.join("") || `<li class="vazio" style="display:block;cursor:default">Nenhum local nesse raio. Aumente o raio ou toque em outro ponto do mapa.</li>`;
+  $("lista").onclick = (e) => {
+    const li = e.target.closest("[data-i]"); if (!li) return;
+    const d = visiveis[+li.dataset.i]; mapa.setView([d.latitude, d.longitude], Math.max(mapa.getZoom(), 16)); d._m.openPopup();
+  };
+}
+
+function popup(d, s) {
+  const valor = d.status_local === "ATIVO"
+    ? `Mensalidade ativa: <b>${brl(d.mensalidade_ativa)}</b>`
+    : `Última mensalidade: <b>${brl(d.mensalidade_ultimo_contrato)}</b>`;
+  const aprox = PRECISAO_APROX[d.geo_precisao] ? `<p class="sub">Ponto aproximado (${PRECISAO_APROX[d.geo_precisao]})</p>` : "";
+  const rota = `https://www.google.com/maps/dir/?api=1&destination=${d.latitude},${d.longitude}`;
+  return `<div class="popup"><span class="selo" style="background:${s.hex}">${s.nome}</span>
+    <h3>${esc(d.cliente)}</h3>
+    <p>${esc(d.endereco)} · ${esc(d.bairro)}, ${esc(d.cidade)}</p>
+    <p>${valor} · Modelo: ${esc(d.modelo || "—")}</p>
+    <p>Instalação: ${dataBR(d.dt_instalacao)} · Vendedor: ${esc(d.vendedor || "—")}</p>
+    <p>Contato: ${esc(d.contato || "—")}</p>${aprox}
+    <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p></div>`;
+}
+</script>
+</body>
+</html>
