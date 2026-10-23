@@ -66,6 +66,12 @@ header h1 { font: 700 20px/1 var(--display); margin: 0; flex: 1; }
 .popup a { color: var(--accent); font-weight: 600; }
 .selo { display: inline-block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; padding: 2px 7px; border-radius: 4px; color: #fff; }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface); color: var(--fg); }
+.popup .links { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.popup .links a { border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; font-size: 12px; text-decoration: none; }
+.popup textarea { width: 100%; min-height: 54px; margin-top: 6px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: inherit; font-size: 13px; resize: vertical; }
+.popup .primario { width: 100%; margin-top: 6px; padding: 9px; }
+.popup .aviso { color: var(--muted); font-size: 12px; }
+.nota { font: 700 13px/1 var(--display); padding: 3px 7px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
 .voce { width: 16px; height: 16px; border-radius: 50%; background: #1d6fe0; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(29,111,224,.35); }
 </style>
 </head>
@@ -112,18 +118,23 @@ const STATUS = {
   CANCELADO: { nome: "Cancelados", cor: "var(--cancelado)", hex: "#d0661b" },
   CANCELADO_COM_CNPJ_ATIVO: { nome: "Cancelado, CNPJ ativo", cor: "var(--cnpj)", hex: "#7a4fc4" },
   OUTROS: { nome: "Outros", cor: "var(--outros)", hex: "#8a948f" },
+  PROSPECT: { nome: "Prospects 80+", cor: "#2f7fd8", hex: "#2f7fd8" },
+  OPORTUNIDADE: { nome: "Prospecção ativa", cor: "#14336e", hex: "#14336e" },
 };
+const ROTULO_FUNIL = { ATIVADO: "Prospecção ativada", PROPOSTA_ENVIADA: "Proposta enviada", EM_NEGOCIACAO: "Em negociação", GANHO: "Ganho", PERDIDO: "Perdido" };
 const RAIOS = [500, 1000, 2000, 5000];
 const PRECISAO_APROX = { cep: "localização pelo CEP", localidade: "localização pelo bairro", logradouro: "localização pela rua" };
 
-let estado = { raio: 1000, filtros: new Set(["ATIVO", "CANCELADO", "CANCELADO_COM_CNPJ_ATIVO"]), centro: null, dados: [] };
-let mapa, camada, marcaVoce, circulo;
+let estado = { raio: 1000, filtros: new Set(["ATIVO", "CANCELADO", "CANCELADO_COM_CNPJ_ATIVO", "PROSPECT", "OPORTUNIDADE"]), centro: null, dados: [] };
+let mapa, camada, marcaVoce, circulo, visiveis = [];
 
 const $ = (id) => document.getElementById(id);
 const brl = (v) => v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const dataBR = (d) => d ? d.split("-").reverse().join("/") : "—";
+const dataBR = (d) => d ? d.slice(0, 10).split("-").reverse().join("/") : "—";
 const km = (m) => m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const busca = (q) => encodeURIComponent(q);
+const grupo = (d) => d.tipo === "PROSPECT" ? (d.oportunidade_status ? "OPORTUNIDADE" : "PROSPECT") : d.status_local;
 
 // Login
 $("form-login").addEventListener("submit", async (e) => {
@@ -147,6 +158,7 @@ function abrirApp() {
   }).addTo(mapa);
   camada = L.layerGroup().addTo(mapa);
   mapa.on("click", (e) => buscar(e.latlng.lat, e.latlng.lng, false));
+  document.addEventListener("click", ativarPeloBotao);
   montarControles();
   localizar();
 }
@@ -191,50 +203,109 @@ async function buscar(lat, lon, ehVoce) {
   circulo = L.circle([lat, lon], { radius: estado.raio, color: "#0f6b5a", weight: 1, fillOpacity: 0.05 }).addTo(mapa);
   mapa.fitBounds(circulo.getBounds(), { padding: [10, 10] });
   $("resumo").textContent = "Buscando…";
-  const { data, error } = await db.rpc("locais_proximos", { p_lat: lat, p_lon: lon, p_raio_m: estado.raio });
-  if (error) { $("resumo").textContent = "Não foi possível buscar: " + error.message; return; }
-  estado.dados = data || [];
+  const args = { p_lat: lat, p_lon: lon, p_raio_m: estado.raio };
+  const [loc, pro] = await Promise.all([db.rpc("locais_proximos", args), db.rpc("prospects_proximos", args)]);
+  if (loc.error) { $("resumo").textContent = "Não foi possível buscar os clientes: " + loc.error.message; return; }
+  const prospects = pro.error ? [] : (pro.data || []);
+  estado.dados = [
+    ...(loc.data || []).map((d) => ({ ...d, tipo: "LOCAL" })),
+    ...prospects.map((d) => ({ ...d, tipo: "PROSPECT", cliente: d.nome })),
+  ].sort((x, y) => x.distancia_m - y.distancia_m);
+  estado.avisoProspects = pro.error ? "Prospects indisponíveis: " + pro.error.message : "";
   desenhar();
 }
 
 function desenhar() {
   camada.clearLayers();
-  const visiveis = estado.dados.filter((d) => estado.filtros.has(d.status_local));
+  visiveis = estado.dados.filter((d) => estado.filtros.has(grupo(d)));
   for (const k of Object.keys(STATUS)) {
-    const n = estado.dados.filter((d) => d.status_local === k).length;
+    const n = estado.dados.filter((d) => grupo(d) === k).length;
     const el = document.querySelector(`[data-n="${k}"]`); if (el) el.textContent = n ? `· ${n}` : "";
   }
-  const ativos = estado.dados.filter((d) => d.status_local === "ATIVO");
-  const mens = ativos.reduce((s, d) => s + Number(d.mensalidade_ativa || 0), 0);
-  $("resumo").textContent = `${visiveis.length} locais em ${km(estado.raio)} · ${brl(mens)}/mês ativos`;
+  const mens = estado.dados.filter((d) => d.status_local === "ATIVO").reduce((s, d) => s + Number(d.mensalidade_ativa || 0), 0);
+  const nPros = estado.dados.filter((d) => d.tipo === "PROSPECT").length;
+  $("resumo").textContent = estado.avisoProspects ||
+    `${visiveis.length} pontos em ${km(estado.raio)} · ${brl(mens)}/mês ativos · ${nPros} prospects`;
   const itens = [];
   visiveis.forEach((d, i) => {
-    const s = STATUS[d.status_local] || STATUS.OUTROS;
-    const m = L.circleMarker([d.latitude, d.longitude], { radius: 7, color: "#fff", weight: 2, fillColor: s.hex, fillOpacity: 0.95 })
-      .bindPopup(popup(d, s)).addTo(camada);
-    itens.push(`<li data-i="${i}"><span class="ponto" style="background:${s.cor}"></span><div><div class="nome">${esc(d.cliente || d.endereco)}</div><div class="sub">${esc(d.endereco)} · ${esc(d.bairro)}${d.vendedor ? " · " + esc(d.vendedor) : ""}</div></div><div class="dist">${km(d.distancia_m)}</div></li>`);
-    d._m = m;
+    const s = STATUS[grupo(d)] || STATUS.OUTROS;
+    const ehP = d.tipo === "PROSPECT";
+    d._m = L.circleMarker([d.latitude, d.longitude], {
+      radius: ehP ? 6 : 7, color: "#fff", weight: 2, fillColor: s.hex, fillOpacity: 0.95,
+    }).bindPopup(() => ehP ? popupProspect(d, s) : popupLocal(d, s), { maxWidth: 320 }).addTo(camada);
+    const sub = ehP
+      ? `${esc(d.segmento)} · nota ${d.nota}${d.expansao_rede ? " · rede de cliente" : ""} · ${esc(d.bairro)}`
+      : `${esc(d.endereco)} · ${esc(d.bairro)}${d.vendedor ? " · " + esc(d.vendedor) : ""}`;
+    itens.push(`<li data-i="${i}"><span class="ponto" style="background:${s.cor}"></span><div><div class="nome">${esc(d.cliente || d.endereco)}</div><div class="sub">${sub}</div></div><div class="dist">${km(d.distancia_m)}</div></li>`);
   });
-  $("lista").innerHTML = itens.join("") || `<li class="vazio" style="display:block;cursor:default">Nenhum local nesse raio. Aumente o raio ou toque em outro ponto do mapa.</li>`;
+  $("lista").innerHTML = itens.join("") || `<li class="vazio" style="display:block;cursor:default">Nada nesse raio com os filtros escolhidos. Aumente o raio ou toque em outro ponto do mapa.</li>`;
   $("lista").onclick = (e) => {
     const li = e.target.closest("[data-i]"); if (!li) return;
     const d = visiveis[+li.dataset.i]; mapa.setView([d.latitude, d.longitude], Math.max(mapa.getZoom(), 16)); d._m.openPopup();
   };
 }
 
-function popup(d, s) {
+function aproximado(d) {
+  return PRECISAO_APROX[d.geo_precisao] ? `<p class="aviso">Ponto aproximado (${PRECISAO_APROX[d.geo_precisao]})</p>` : "";
+}
+
+function popupLocal(d, s) {
   const valor = d.status_local === "ATIVO"
     ? `Mensalidade ativa: <b>${brl(d.mensalidade_ativa)}</b>`
     : `Última mensalidade: <b>${brl(d.mensalidade_ultimo_contrato)}</b>`;
-  const aprox = PRECISAO_APROX[d.geo_precisao] ? `<p class="sub">Ponto aproximado (${PRECISAO_APROX[d.geo_precisao]})</p>` : "";
   const rota = `https://www.google.com/maps/dir/?api=1&destination=${d.latitude},${d.longitude}`;
   return `<div class="popup"><span class="selo" style="background:${s.hex}">${s.nome}</span>
     <h3>${esc(d.cliente)}</h3>
     <p>${esc(d.endereco)} · ${esc(d.bairro)}, ${esc(d.cidade)}</p>
     <p>${valor} · Modelo: ${esc(d.modelo || "—")}</p>
     <p>Instalação: ${dataBR(d.dt_instalacao)} · Vendedor: ${esc(d.vendedor || "—")}</p>
-    <p>Contato: ${esc(d.contato || "—")}</p>${aprox}
+    <p>Contato: ${esc(d.contato || "—")}</p>${aproximado(d)}
     <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p></div>`;
+}
+
+function popupProspect(d, s) {
+  const onde = `${d.nome} ${d.endereco} ${d.cidade}`;
+  const nomeCidade = `${d.nome} ${d.cidade}`;
+  const links = [
+    ["Google Maps", `https://www.google.com/maps/search/?api=1&query=${busca(onde)}`],
+    ["TripAdvisor", `https://www.google.com/search?q=${busca("site:tripadvisor.com.br " + nomeCidade)}`],
+    ["iFood", `https://www.google.com/search?q=${busca("site:ifood.com.br " + nomeCidade)}`],
+    ["Michelin", `https://www.google.com/search?q=${busca("site:guide.michelin.com " + nomeCidade)}`],
+  ].map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`).join("");
+  const tel = [d.telefone1, d.telefone2].filter(Boolean).map(esc).join(" · ") || "—";
+  const rota = `https://www.google.com/maps/dir/?api=1&destination=${d.latitude},${d.longitude}`;
+  const funil = d.oportunidade_status
+    ? `<p><b>${ROTULO_FUNIL[d.oportunidade_status] || d.oportunidade_status}</b> em ${dataBR(d.ativado_em)}</p>${d.observacao ? `<p class="aviso">${esc(d.observacao)}</p>` : ""}`
+    : `<textarea id="obs-${d.cnpj}" placeholder="Observação (opcional): com quem falou, interesse, melhor horário…"></textarea>
+       <button type="button" class="primario" data-ativar="${d.cnpj}">Ativar prospecção</button>
+       <p class="aviso" id="msg-${d.cnpj}"></p>`;
+  return `<div class="popup"><span class="selo" style="background:${s.hex}">${s.nome}</span> <span class="nota">Nota ${d.nota}</span>
+    <h3>${esc(d.nome)}</h3>
+    <p>${esc(d.segmento)}${d.expansao_rede ? " · <b>outra unidade de um cliente</b>" : ""}</p>
+    <p>${esc(d.endereco)} · ${esc(d.bairro)}, ${esc(d.cidade)}</p>
+    <p>Telefone: ${tel}</p>
+    <p>${esc(d.porte || "—")} · ${d.anos_de_abertura ?? "—"} anos de CNPJ${d.unidades_na_regiao > 1 ? ` · ${d.unidades_na_regiao} unidades` : ""}</p>${aproximado(d)}
+    <div class="links">${links}</div>
+    <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p>
+    ${funil}</div>`;
+}
+
+async function ativarPeloBotao(e) {
+  const b = e.target.closest("[data-ativar]"); if (!b) return;
+  const cnpj = b.dataset.ativar;
+  const obs = (document.getElementById("obs-" + cnpj)?.value || "").trim();
+  const msg = document.getElementById("msg-" + cnpj);
+  b.disabled = true; b.textContent = "Ativando…";
+  const { error } = await db.from("oportunidades").insert({ cnpj, observacao: obs || null });
+  if (error) {
+    b.disabled = false; b.textContent = "Ativar prospecção";
+    msg.textContent = error.code === "23505" ? "Este prospect já foi ativado por outro vendedor." : "Não foi possível ativar: " + error.message;
+    return;
+  }
+  const d = estado.dados.find((x) => x.cnpj === cnpj && x.tipo === "PROSPECT");
+  if (d) { d.oportunidade_status = "ATIVADO"; d.ativado_em = new Date().toISOString(); d.observacao = obs; }
+  mapa.closePopup(); desenhar();
+  if (d) { const v = visiveis.indexOf(d); if (v >= 0) d._m.openPopup(); }
 }
 </script>
 </body>
