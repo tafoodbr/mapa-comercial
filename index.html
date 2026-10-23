@@ -123,6 +123,10 @@ const STATUS = {
 };
 const ROTULO_FUNIL = { ATIVADO: "Prospecção ativada", PROPOSTA_ENVIADA: "Proposta enviada", EM_NEGOCIACAO: "Em negociação", GANHO: "Ganho", PERDIDO: "Perdido" };
 const RAIOS = [500, 1000, 2000, 5000];
+// Texto padrão do primeiro contato (definido pelo Fábio em 23/10/2026).
+const MENSAGEM_PADRAO = "Olá, talvez você saiba, mas, talvez não saiba. O Sistema de Limpeza RestoClean X-10 é o maior aliado dos restaurantes no combate à gordura. Arrisco afirmar que economia de mão de obra, melhor eficiência operacional e economia de produtos de limpeza são alguns dos principais benefícios. Provavelmente algum restaurante de destaque próximo a você pode estar aplicando a nossa limpeza por imersão.";
+const ASSUNTO_EMAIL = "RestoClean X-10: limpeza por imersão no combate à gordura";
+const DIAS_RETORNO = 3;
 const PRECISAO_APROX = { cep: "localização pelo CEP", localidade: "localização pelo bairro", logradouro: "localização pela rua" };
 
 let estado = { raio: 1000, filtros: new Set(["ATIVO", "CANCELADO", "CANCELADO_COM_CNPJ_ATIVO", "PROSPECT", "OPORTUNIDADE"]), centro: null, dados: [] };
@@ -134,6 +138,12 @@ const dataBR = (d) => d ? d.slice(0, 10).split("-").reverse().join("/") : "—";
 const km = (m) => m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const busca = (q) => encodeURIComponent(q);
+function telWhats(t) {
+  let d = String(t || "").replace(/\D/g, "").replace(/^0+/, "");
+  if (d.startsWith("55") && d.length >= 12) d = d.slice(2);
+  return d.length === 10 || d.length === 11 ? d : "";
+}
+const pareceFixo = (d) => d.length === 10 && !/^\d{2}9/.test(d);
 const grupo = (d) => d.tipo === "PROSPECT" ? (d.oportunidade_status ? "OPORTUNIDADE" : "PROSPECT") : d.status_local;
 
 // Login
@@ -274,11 +284,20 @@ function popupProspect(d, s) {
   ].map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`).join("");
   const tel = [d.telefone1, d.telefone2].filter(Boolean).map(esc).join(" · ") || "—";
   const rota = `https://www.google.com/maps/dir/?api=1&destination=${d.latitude},${d.longitude}`;
-  const funil = d.oportunidade_status
-    ? `<p><b>${ROTULO_FUNIL[d.oportunidade_status] || d.oportunidade_status}</b> em ${dataBR(d.ativado_em)}</p>${d.observacao ? `<p class="aviso">${esc(d.observacao)}</p>` : ""}`
-    : `<textarea id="obs-${d.cnpj}" placeholder="Observação (opcional): com quem falou, interesse, melhor horário…"></textarea>
+  const tel1 = telWhats(d.telefone1) || telWhats(d.telefone2);
+  const envio = `<p style="margin-top:8px"><b>Enviar proposta</b></p>
+       <label>WhatsApp (DDD + número)<input id="wa-${d.cnpj}" inputmode="tel" value="${tel1}"></label>
+       ${tel1 && pareceFixo(tel1) ? `<p class="aviso">Esse número parece fixo; o WhatsApp pode não abrir. Confira um celular no Google Maps.</p>` : ""}
+       <button type="button" class="primario" data-whats="${d.cnpj}">Abrir WhatsApp com a mensagem</button>
+       <label style="margin-top:6px">E-mail<input id="em-${d.cnpj}" type="email" value="${esc(d.email || "")}"></label>
+       <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-email="${d.cnpj}">Abrir e-mail com a mensagem</button>
+       <p class="aviso" id="env-${d.cnpj}"></p>`;
+  const funil = !d.oportunidade_status
+    ? `<textarea id="obs-${d.cnpj}" placeholder="Observação (opcional): com quem falou, interesse, melhor horário…"></textarea>
        <button type="button" class="primario" data-ativar="${d.cnpj}">Ativar prospecção</button>
-       <p class="aviso" id="msg-${d.cnpj}"></p>`;
+       <p class="aviso" id="msg-${d.cnpj}"></p>`
+    : `<p><b>${ROTULO_FUNIL[d.oportunidade_status] || d.oportunidade_status}</b>${d.oportunidade_status === "ATIVADO" ? " em " + dataBR(d.ativado_em) : ""}</p>${d.observacao ? `<p class="aviso">${esc(d.observacao)}</p>` : ""}
+       ${["ATIVADO", "PROPOSTA_ENVIADA"].includes(d.oportunidade_status) ? envio : ""}`;
   return `<div class="popup"><span class="selo" style="background:${s.hex}">${s.nome}</span> <span class="nota">Nota ${d.nota}</span>
     <h3>${esc(d.nome)}</h3>
     <p>${esc(d.segmento)}${d.expansao_rede ? " · <b>outra unidade de um cliente</b>" : ""}</p>
@@ -291,6 +310,9 @@ function popupProspect(d, s) {
 }
 
 async function ativarPeloBotao(e) {
+  if (e.target.closest("[data-whats]")) return abrirEnvio(e.target.closest("[data-whats]").dataset.whats, "WHATSAPP");
+  if (e.target.closest("[data-email]")) return abrirEnvio(e.target.closest("[data-email]").dataset.email, "EMAIL");
+  if (e.target.closest("[data-enviei]")) return confirmarEnvio(e.target.closest("[data-enviei]"));
   const b = e.target.closest("[data-ativar]"); if (!b) return;
   const cnpj = b.dataset.ativar;
   const obs = (document.getElementById("obs-" + cnpj)?.value || "").trim();
@@ -306,6 +328,39 @@ async function ativarPeloBotao(e) {
   if (d) { d.oportunidade_status = "ATIVADO"; d.ativado_em = new Date().toISOString(); d.observacao = obs; }
   mapa.closePopup(); desenhar();
   if (d) { const v = visiveis.indexOf(d); if (v >= 0) d._m.openPopup(); }
+}
+
+function abrirEnvio(cnpj, canal) {
+  const msg = document.getElementById("env-" + cnpj);
+  let destino, link;
+  if (canal === "WHATSAPP") {
+    destino = telWhats(document.getElementById("wa-" + cnpj).value);
+    if (!destino) { msg.textContent = "Digite o WhatsApp com DDD, por exemplo 11 91234-5678."; return; }
+    link = `https://wa.me/55${destino}?text=${encodeURIComponent(MENSAGEM_PADRAO)}`;
+  } else {
+    destino = document.getElementById("em-" + cnpj).value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(destino)) { msg.textContent = "Digite um e-mail válido."; return; }
+    link = `mailto:${destino}?subject=${encodeURIComponent(ASSUNTO_EMAIL)}&body=${encodeURIComponent(MENSAGEM_PADRAO)}`;
+  }
+  window.open(link, "_blank", "noopener");
+  const nome = canal === "WHATSAPP" ? "WhatsApp" : "e-mail";
+  msg.innerHTML = `Enviou pelo ${nome}? <button type="button" class="primario" data-enviei="${cnpj}" data-canal="${canal}" data-destino="${esc(destino)}">Sim, enviei</button>`;
+}
+
+async function confirmarEnvio(b) {
+  const { enviei: cnpj, canal, destino } = b.dataset;
+  const msg = document.getElementById("env-" + cnpj);
+  b.disabled = true;
+  const agora = new Date();
+  const retorno = new Date(agora.getTime() + DIAS_RETORNO * 86400000).toISOString().slice(0, 10);
+  const { error } = await db.from("oportunidades").update({
+    status: "PROPOSTA_ENVIADA", canal, destino, proposta_enviada_em: agora.toISOString(),
+    retorno_em: retorno, atualizado_em: agora.toISOString(),
+  }).eq("cnpj", cnpj);
+  if (error) { b.disabled = false; msg.textContent = "Não foi possível registrar: " + error.message; return; }
+  const d = estado.dados.find((x) => x.cnpj === cnpj && x.tipo === "PROSPECT");
+  if (d) d.oportunidade_status = "PROPOSTA_ENVIADA";
+  msg.textContent = `Registrado: proposta por ${canal === "WHATSAPP" ? "WhatsApp" : "e-mail"} para ${destino}. Retorno em ${dataBR(retorno)}.`;
 }
 </script>
 </body>
