@@ -82,6 +82,7 @@ select.chip { padding-right: 8px; }
 .folha-topo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .folha-topo h2 { font: 700 22px/1 var(--display); margin: 0; flex: 1; }
 .folha select, .folha textarea { padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: inherit; color: inherit; }
+.duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .folha form, .folha .bloco { max-width: 560px; display: grid; gap: 10px; }
 .folha h3 { font: 600 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 14px 0 4px; }
 .fu { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 6px; }
@@ -135,10 +136,16 @@ select.chip { padding-right: 8px; }
   <div class="folha-topo"><h2>Novo ponto</h2><button class="fantasma" type="button" id="fechar-novo">Fechar</button></div>
   <form id="form-novo">
     <p class="sub" id="novo-local"></p>
+    <label>CNPJ (opcional: se estiver na base, preenche o resto) <input id="novo-cnpj" inputmode="numeric" autocomplete="off"></label>
+    <p class="aviso" id="cnpj-info"></p>
     <label>Nome do estabelecimento <input id="novo-nome" required></label>
     <label>WhatsApp / telefone (com DDD) <input id="novo-tel" inputmode="tel"></label>
+    <label>CEP <input id="novo-cep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000"></label>
+    <p class="aviso" id="cep-info"></p>
+    <label>Rua / avenida <input id="novo-end" autocomplete="address-line1"></label>
+    <div class="duas"><label>Número <input id="novo-num" inputmode="numeric"></label><label>Bairro <input id="novo-bairro"></label></div>
+    <div class="duas"><label>Cidade <input id="novo-cidade"></label><label>UF <input id="novo-uf" maxlength="2"></label></div>
     <label>Categoria <select id="novo-cat"></select></label>
-    <label>CNPJ (opcional) <input id="novo-cnpj" inputmode="numeric"></label>
     <label>Observação <textarea id="novo-obs" rows="3" placeholder="Com quem falou, interesse, melhor horário…"></textarea></label>
     <button class="primario" type="submit" id="salvar-novo">Salvar e ativar prospecção</button>
     <p class="aviso" id="msg-novo"></p>
@@ -427,6 +434,8 @@ function montarNovoEFollow() {
     { enableHighAccuracy: true, timeout: 12000 });
   $("fechar-novo").onclick = () => { $("folha-novo").hidden = true; sairModoNovo(); };
   $("form-novo").addEventListener("submit", salvarNovo);
+  $("novo-cep").addEventListener("input", buscarCep);
+  $("novo-cnpj").addEventListener("input", buscarCnpj);
   $("btn-follow").onclick = abrirFollow;
   $("fechar-follow").onclick = () => { $("folha-follow").hidden = true; };
   $("lista-follow").addEventListener("click", acaoFollow);
@@ -456,17 +465,65 @@ async function salvarNovo(e) {
     p_nome: $("novo-nome").value, p_telefone: $("novo-tel").value.trim() || null,
     p_lat: pontoNovo[0], p_lon: pontoNovo[1], p_segmento: $("novo-cat").value,
     p_observacao: $("novo-obs").value.trim() || null, p_cnpj: $("novo-cnpj").value.trim() || null,
+    p_cep: $("novo-cep").value.trim() || null, p_endereco: $("novo-end").value.trim() || null,
+    p_numero: $("novo-num").value.trim() || null, p_bairro: $("novo-bairro").value.trim() || null,
+    p_cidade: $("novo-cidade").value.trim() || null, p_uf: $("novo-uf").value.trim() || null,
   });
   b.disabled = false; b.textContent = "Salvar e ativar prospecção";
   if (error) {
     $("msg-novo").textContent = error.code === "23505" ? "Esse CNPJ já está ativado no funil." : "Não foi possível salvar: " + error.message;
     return;
   }
-  $("form-novo").reset(); $("folha-novo").hidden = true; sairModoNovo();
+  $("form-novo").reset(); $("cep-info").textContent = ""; $("cnpj-info").textContent = "";
+  $("folha-novo").hidden = true; sairModoNovo();
   await buscar(pontoNovo[0], pontoNovo[1], false);
   const d = estado.dados.find((x) => x.cnpj === data);
   if (d && d._m) d._m.openPopup();
   contarFollow();
+}
+
+// Preenche rua, bairro, cidade e UF a partir do CEP (ViaCEP, serviço público e gratuito).
+let ultimoCep = "";
+async function buscarCep() {
+  const cep = $("novo-cep").value.replace(/\D/g, "");
+  if (cep.length !== 8 || cep === ultimoCep) return;
+  ultimoCep = cep;
+  $("cep-info").textContent = "Buscando CEP…";
+  try {
+    const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+    const j = await r.json();
+    if (j.erro) { $("cep-info").textContent = "CEP não encontrado. Preencha o endereço à mão."; return; }
+    $("novo-end").value = j.logradouro || $("novo-end").value;
+    $("novo-bairro").value = j.bairro || $("novo-bairro").value;
+    $("novo-cidade").value = j.localidade || "";
+    $("novo-uf").value = j.uf || "";
+    $("cep-info").textContent = "Endereço preenchido pelo CEP. Falta só o número.";
+    $("novo-num").focus();
+  } catch {
+    $("cep-info").textContent = "Não foi possível consultar o CEP agora. Preencha o endereço à mão.";
+  }
+}
+
+// Se o CNPJ já está na base da Receita, preenche nome, telefone e endereço.
+let ultimoCnpj = "";
+async function buscarCnpj() {
+  const cnpj = $("novo-cnpj").value.replace(/\D/g, "");
+  if (cnpj.length !== 14 || cnpj === ultimoCnpj) return;
+  ultimoCnpj = cnpj;
+  const { data } = await db.from("prospects")
+    .select("nome_fantasia,razao_social,telefone1,cep,endereco,numero,bairro,cidade,uf,segmento,nota")
+    .eq("cnpj", cnpj).maybeSingle();
+  if (!data) { $("cnpj-info").textContent = "CNPJ não está na base. Preencha os dados abaixo."; return; }
+  $("novo-nome").value = data.nome_fantasia || data.razao_social || "";
+  $("novo-tel").value = data.telefone1 || "";
+  $("novo-cep").value = data.cep || ""; ultimoCep = data.cep || "";
+  $("novo-end").value = data.endereco || "";
+  $("novo-num").value = data.numero || "";
+  $("novo-bairro").value = data.bairro || "";
+  $("novo-cidade").value = data.cidade || "";
+  $("novo-uf").value = data.uf || "";
+  if (CATEGORIAS.includes(data.segmento)) $("novo-cat").value = data.segmento;
+  $("cnpj-info").textContent = `Encontrado na base da Receita${data.nota != null ? " (nota " + data.nota + ")" : ""}. Ao salvar, ele é ativado no ponto que já está no mapa.`;
 }
 
 // ---------- Follow-up ----------
