@@ -146,6 +146,7 @@ select.chip { padding-right: 8px; }
     <div class="duas"><label>Número <input id="novo-num" inputmode="numeric"></label><label>Bairro <input id="novo-bairro"></label></div>
     <div class="duas"><label>Cidade <input id="novo-cidade"></label><label>UF <input id="novo-uf" maxlength="2"></label></div>
     <label>Categoria <select id="novo-cat"></select></label>
+    <label>Instagram (opcional) <input id="novo-ig" placeholder="@perfil ou link" autocomplete="off"></label>
     <label>Observação <textarea id="novo-obs" rows="3" placeholder="Com quem falou, interesse, melhor horário…"></textarea></label>
     <button class="primario" type="submit" id="salvar-novo">Salvar e ativar prospecção</button>
     <p class="aviso" id="msg-novo"></p>
@@ -338,6 +339,7 @@ function popupProspect(d, s) {
   const nomeCidade = `${d.nome} ${d.cidade}`;
   const links = [
     ["Google Maps", `https://www.google.com/maps/search/?api=1&query=${busca(onde)}`],
+    ["Instagram", `https://www.google.com/search?q=${busca("site:instagram.com " + nomeCidade)}`],
     ["TripAdvisor", `https://www.google.com/search?q=${busca("site:tripadvisor.com.br " + nomeCidade)}`],
     ["iFood", `https://www.google.com/search?q=${busca("site:ifood.com.br " + nomeCidade)}`],
     ["Michelin", `https://www.google.com/search?q=${busca("site:guide.michelin.com " + nomeCidade)}`],
@@ -365,11 +367,34 @@ function popupProspect(d, s) {
     <p>Telefone: ${tel}</p>
     <p>${esc(d.porte || "—")} · ${d.anos_de_abertura ?? "—"} anos de CNPJ${d.unidades_na_regiao > 1 ? ` · ${d.unidades_na_regiao} unidades` : ""}</p>${aproximado(d)}
     <div class="links">${links}</div>
+    ${blocoInstagram(d)}
     <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p>
     ${funil}</div>`;
 }
 
+function blocoInstagram(d) {
+  if (d.instagram) {
+    return `<div class="links"><b>@${esc(d.instagram)}</b>
+      <a href="https://www.instagram.com/${encodeURIComponent(d.instagram)}/" target="_blank" rel="noopener">Ver perfil</a>
+      <a href="https://ig.me/m/${encodeURIComponent(d.instagram)}" target="_blank" rel="noopener">Mandar Direct</a></div>`;
+  }
+  return `<div class="duas" style="align-items:end;margin-top:4px">
+      <label>Instagram (@) <input id="ig-${d.cnpj}" placeholder="@perfil ou link"></label>
+      <button type="button" class="fantasma" data-ig-salvar="${d.cnpj}">Salvar @</button></div>
+    <p class="aviso" id="igmsg-${d.cnpj}"></p>`;
+}
+
+async function salvarInstagram(cnpj) {
+  const campo = document.getElementById("ig-" + cnpj), msg = document.getElementById("igmsg-" + cnpj);
+  const { data, error } = await db.rpc("salvar_instagram", { p_cnpj: cnpj, p_instagram: campo.value });
+  if (error) { msg.textContent = "Não foi possível salvar: " + error.message; return; }
+  if (!data) { msg.textContent = "Digite o @ do perfil, por exemplo @restaurante."; return; }
+  const d = estado.dados.find((x) => x.cnpj === cnpj && x.tipo === "PROSPECT");
+  if (d) { d.instagram = data; mapa.closePopup(); d._m.openPopup(); }
+}
+
 async function ativarPeloBotao(e) {
+  if (e.target.closest("[data-ig-salvar]")) return salvarInstagram(e.target.closest("[data-ig-salvar]").dataset.igSalvar);
   if (e.target.closest("[data-whats]")) return abrirEnvio(e.target.closest("[data-whats]").dataset.whats, "WHATSAPP");
   if (e.target.closest("[data-email]")) return abrirEnvio(e.target.closest("[data-email]").dataset.email, "EMAIL");
   if (e.target.closest("[data-enviei]")) return confirmarEnvio(e.target.closest("[data-enviei]"));
@@ -474,6 +499,7 @@ async function salvarNovo(e) {
     $("msg-novo").textContent = error.code === "23505" ? "Esse CNPJ já está ativado no funil." : "Não foi possível salvar: " + error.message;
     return;
   }
+  if ($("novo-ig").value.trim()) await db.rpc("salvar_instagram", { p_cnpj: data, p_instagram: $("novo-ig").value });
   $("form-novo").reset(); $("cep-info").textContent = ""; $("cnpj-info").textContent = "";
   $("folha-novo").hidden = true; sairModoNovo();
   await buscar(pontoNovo[0], pontoNovo[1], false);
@@ -531,7 +557,7 @@ const hojeISO = () => new Date().toISOString().slice(0, 10);
 
 async function carregarFollow() {
   return db.from("oportunidades")
-    .select("cnpj,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao,prospects(nome_fantasia,razao_social,telefone1,bairro,cidade,segmento,latitude,longitude)")
+    .select("cnpj,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao,prospects(nome_fantasia,razao_social,telefone1,bairro,cidade,segmento,latitude,longitude,instagram)")
     .in("status", ["ATIVADO", "PROPOSTA_ENVIADA", "EM_NEGOCIACAO"])
     .order("retorno_em", { ascending: true, nullsFirst: false });
 }
@@ -572,6 +598,7 @@ function cartaoFollow(o) {
     ${o.observacao ? `<div class="sub">${esc(o.observacao)}</div>` : ""}
     <div class="acoes">
       ${whats ? `<button type="button" class="fantasma" data-fu-whats="${whats}">Abrir conversa</button>` : ""}
+      ${p.instagram ? `<a class="fantasma" style="text-decoration:none" href="https://ig.me/m/${encodeURIComponent(p.instagram)}" target="_blank" rel="noopener">Direct @${esc(p.instagram)}</a>` : ""}
       <button type="button" class="fantasma" data-fu-mapa="${o.cnpj}" data-lat="${p.latitude}" data-lon="${p.longitude}">Ver no mapa</button>
       ${o.retorno_em ? `<button type="button" class="fantasma" data-fu-adiar="${o.cnpj}">Retorno feito · +${DIAS_RETORNO} dias</button>` : ""}
       <select class="fantasma" data-fu-status="${o.cnpj}" aria-label="Mudar situação">
