@@ -113,7 +113,7 @@ select.chip { padding-right: 8px; }
     <button class="fantasma" id="btn-sair" type="button">Sair</button>
   </header>
   <div id="mapa-wrap"><div id="mapa"></div>
-    <div class="faixa-modo" id="faixa-novo" hidden>Toque no mapa onde fica o estabelecimento <button type="button" id="usar-gps">Usar minha posição</button> <button type="button" id="cancelar-novo">Cancelar</button></div>
+    <div class="faixa-modo" id="faixa-novo" hidden>Toque no mapa onde fica o estabelecimento <button type="button" id="usar-gps">Usar minha posição</button> <button type="button" id="pelo-end">Pelo endereço</button> <button type="button" id="cancelar-novo">Cancelar</button></div>
   </div>
   <div class="painel">
     <div class="linha" id="raios" role="group" aria-label="Raio da busca"></div>
@@ -453,6 +453,9 @@ function montarNovoEFollow() {
   $("novo-cat").innerHTML = CATEGORIAS.map((c) => `<option value="${c}">${c[0] + c.slice(1).toLowerCase()}</option>`).join("");
   $("btn-novo").onclick = () => { modoNovo = true; $("faixa-novo").hidden = false; mapa.closePopup(); };
   $("cancelar-novo").onclick = sairModoNovo;
+  $("pelo-end").onclick = () => abrirFormSemPonto("");
+  const ig = new URLSearchParams(location.search).get("ig");
+  if (ig) { history.replaceState(null, "", location.pathname); abrirFormSemPonto(ig); }
   $("usar-gps").onclick = () => navigator.geolocation.getCurrentPosition(
     (p) => escolherPonto(p.coords.latitude, p.coords.longitude),
     () => { $("faixa-novo").firstChild.textContent = "Localização não liberada. Toque no mapa. "; },
@@ -472,6 +475,30 @@ function sairModoNovo() {
   if (marcaNovo) { marcaNovo.remove(); marcaNovo = null; }
 }
 
+// Cadastro sem tocar no mapa (ex.: começando pelo Instagram): o ponto vem do CNPJ ou do endereço.
+function abrirFormSemPonto(ig) {
+  modoNovo = false; $("faixa-novo").hidden = true; pontoNovo = null;
+  $("novo-local").textContent = "Sem local marcado: o ponto será localizado pelo CNPJ ou pelo endereço (CEP + número).";
+  $("msg-novo").textContent = "";
+  if (ig) $("novo-ig").value = ig;
+  $("folha-novo").hidden = false;
+  $("novo-cnpj").focus();
+}
+
+async function localizarEndereco() {
+  const rua = $("novo-end").value.trim(), num = $("novo-num").value.trim();
+  const cidade = $("novo-cidade").value.trim(), uf = $("novo-uf").value.trim(), cep = $("novo-cep").value.replace(/\D/g, "");
+  if (!rua || !cidade) return null;
+  const q = new URLSearchParams({ format: "jsonv2", limit: "1", countrycodes: "br", street: `${num} ${rua}`.trim(), city: cidade, state: uf });
+  try {
+    let r = await (await fetch("https://nominatim.openstreetmap.org/search?" + q)).json();
+    if (!r.length && cep.length === 8) {
+      r = await (await fetch("https://nominatim.openstreetmap.org/search?" + new URLSearchParams({ format: "jsonv2", limit: "1", countrycodes: "br", postalcode: cep }))).json();
+    }
+    return r.length ? [+r[0].lat, +r[0].lon] : null;
+  } catch { return null; }
+}
+
 function escolherPonto(lat, lon) {
   pontoNovo = [lat, lon];
   if (marcaNovo) marcaNovo.remove();
@@ -486,6 +513,14 @@ function escolherPonto(lat, lon) {
 async function salvarNovo(e) {
   e.preventDefault();
   const b = $("salvar-novo"); b.disabled = true; b.textContent = "Salvando…";
+  if (!pontoNovo) {
+    pontoNovo = cnpjBase && cnpjBase.lat != null ? [cnpjBase.lat, cnpjBase.lon] : await localizarEndereco();
+    if (!pontoNovo) {
+      b.disabled = false; b.textContent = "Salvar e ativar prospecção";
+      $("msg-novo").textContent = "Não encontrei esse endereço no mapa. Confira rua, número e cidade, ou feche e marque o local tocando no mapa.";
+      return;
+    }
+  }
   const { data, error } = await db.rpc("novo_ponto", {
     p_nome: $("novo-nome").value, p_telefone: $("novo-tel").value.trim() || null,
     p_lat: pontoNovo[0], p_lon: pontoNovo[1], p_segmento: $("novo-cat").value,
@@ -500,7 +535,7 @@ async function salvarNovo(e) {
     return;
   }
   if ($("novo-ig").value.trim()) await db.rpc("salvar_instagram", { p_cnpj: data, p_instagram: $("novo-ig").value });
-  $("form-novo").reset(); $("cep-info").textContent = ""; $("cnpj-info").textContent = "";
+  $("form-novo").reset(); $("cep-info").textContent = ""; $("cnpj-info").textContent = ""; cnpjBase = null; ultimoCnpj = ""; ultimoCep = "";
   $("folha-novo").hidden = true; sairModoNovo();
   await buscar(pontoNovo[0], pontoNovo[1], false);
   const d = estado.dados.find((x) => x.cnpj === data);
@@ -531,14 +566,15 @@ async function buscarCep() {
 }
 
 // Se o CNPJ já está na base da Receita, preenche nome, telefone e endereço.
-let ultimoCnpj = "";
+let ultimoCnpj = "", cnpjBase = null;
 async function buscarCnpj() {
   const cnpj = $("novo-cnpj").value.replace(/\D/g, "");
   if (cnpj.length !== 14 || cnpj === ultimoCnpj) return;
   ultimoCnpj = cnpj;
   const { data } = await db.from("prospects")
-    .select("nome_fantasia,razao_social,telefone1,cep,endereco,numero,bairro,cidade,uf,segmento,nota")
+    .select("nome_fantasia,razao_social,telefone1,cep,endereco,numero,bairro,cidade,uf,segmento,nota,latitude,longitude,instagram")
     .eq("cnpj", cnpj).maybeSingle();
+  cnpjBase = data ? { lat: data.latitude, lon: data.longitude } : null;
   if (!data) { $("cnpj-info").textContent = "CNPJ não está na base. Preencha os dados abaixo."; return; }
   $("novo-nome").value = data.nome_fantasia || data.razao_social || "";
   $("novo-tel").value = data.telefone1 || "";
@@ -549,6 +585,7 @@ async function buscarCnpj() {
   $("novo-cidade").value = data.cidade || "";
   $("novo-uf").value = data.uf || "";
   if (CATEGORIAS.includes(data.segmento)) $("novo-cat").value = data.segmento;
+  if (data.instagram && !$("novo-ig").value) $("novo-ig").value = data.instagram;
   $("cnpj-info").textContent = `Encontrado na base da Receita${data.nota != null ? " (nota " + data.nota + ")" : ""}. Ao salvar, ele é ativado no ponto que já está no mapa.`;
 }
 
