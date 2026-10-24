@@ -42,12 +42,12 @@ input { padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; b
 
 /* App */
 #app { height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
-header { display: flex; align-items: center; gap: 10px; background: var(--surface); border-bottom: 1px solid var(--line);
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface); border-bottom: 1px solid var(--line);
   padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
 header h1 { font: 700 20px/1 var(--display); margin: 0; flex: 1; }
 .fantasma { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
-#mapa { min-height: 0; }
-.painel { background: var(--surface); border-top: 1px solid var(--line); max-height: 46vh; display: grid; grid-template-rows: auto auto 1fr;
+#mapa { min-height: 0; height: 100%; }
+.painel { background: var(--surface); border-top: 1px solid var(--line); max-height: 46vh; display: grid; grid-template-rows: auto auto auto 1fr;
   padding: 10px max(16px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); gap: 8px; }
 .linha { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 5px 11px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
@@ -72,6 +72,22 @@ header h1 { font: 700 20px/1 var(--display); margin: 0; flex: 1; }
 .popup .primario { width: 100%; margin-top: 6px; padding: 9px; }
 .popup .aviso { color: var(--muted); font-size: 12px; }
 .nota { font: 700 13px/1 var(--display); padding: 3px 7px; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+select.chip { padding-right: 8px; }
+.destaque { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.faixa-modo { position: absolute; z-index: 500; left: 50%; transform: translateX(-50%); top: 10px; background: var(--fg); color: var(--bg); padding: 8px 12px; border-radius: 999px; font-size: 13px; display: flex; gap: 10px; align-items: center; max-width: calc(100% - 32px); }
+.faixa-modo button { background: none; border: 1px solid currentColor; color: inherit; border-radius: 999px; padding: 2px 9px; font-size: 12px; }
+#mapa-wrap { position: relative; min-height: 0; display: grid; }
+.folha { position: fixed; inset: 0; z-index: 1000; background: var(--bg); overflow-y: auto;
+  padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+.folha-topo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.folha-topo h2 { font: 700 22px/1 var(--display); margin: 0; flex: 1; }
+.folha select, .folha textarea { padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: inherit; color: inherit; }
+.folha form, .folha .bloco { max-width: 560px; display: grid; gap: 10px; }
+.folha h3 { font: 600 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 14px 0 4px; }
+.fu { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 6px; }
+.fu .acoes { display: flex; flex-wrap: wrap; gap: 6px; }
+.fu .acoes button, .fu .acoes select { font-size: 13px; }
+.atrasado { color: #c0392b; font-weight: 600; }
 .voce { width: 16px; height: 16px; border-radius: 50%; background: #1d6fe0; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(29,111,224,.35); }
 </style>
 </head>
@@ -90,18 +106,48 @@ header h1 { font: 700 20px/1 var(--display); margin: 0; flex: 1; }
 <section id="app" hidden>
   <header>
     <h1>Mapa Comercial</h1>
-    <button class="fantasma" id="btn-local" type="button">Minha localização</button>
+    <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
+    <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
+    <button class="fantasma" id="btn-local" type="button">Localizar</button>
     <button class="fantasma" id="btn-sair" type="button">Sair</button>
   </header>
-  <div id="mapa"></div>
+  <div id="mapa-wrap"><div id="mapa"></div>
+    <div class="faixa-modo" id="faixa-novo" hidden>Toque no mapa onde fica o estabelecimento <button type="button" id="usar-gps">Usar minha posição</button> <button type="button" id="cancelar-novo">Cancelar</button></div>
+  </div>
   <div class="painel">
     <div class="linha" id="raios" role="group" aria-label="Raio da busca"></div>
     <div class="linha" id="filtros" role="group" aria-label="Filtrar por situação"></div>
+    <div class="linha">
+      <label class="sub" for="nota-min">Prospects</label>
+      <select class="chip" id="nota-min" aria-label="Nota mínima dos prospects">
+        <option value="80">Nota 80+</option><option value="60">Nota 60+</option><option value="40">Nota 40+</option><option value="0">Todas as notas</option>
+      </select>
+      <select class="chip" id="categoria" aria-label="Categoria dos prospects"><option value="">Todas as categorias</option></select>
+    </div>
     <div>
       <div class="resumo" id="resumo">Buscando sua localização…</div>
       <ul id="lista"></ul>
     </div>
   </div>
+</section>
+
+<section class="folha" id="folha-novo" hidden>
+  <div class="folha-topo"><h2>Novo ponto</h2><button class="fantasma" type="button" id="fechar-novo">Fechar</button></div>
+  <form id="form-novo">
+    <p class="sub" id="novo-local"></p>
+    <label>Nome do estabelecimento <input id="novo-nome" required></label>
+    <label>WhatsApp / telefone (com DDD) <input id="novo-tel" inputmode="tel"></label>
+    <label>Categoria <select id="novo-cat"></select></label>
+    <label>CNPJ (opcional) <input id="novo-cnpj" inputmode="numeric"></label>
+    <label>Observação <textarea id="novo-obs" rows="3" placeholder="Com quem falou, interesse, melhor horário…"></textarea></label>
+    <button class="primario" type="submit" id="salvar-novo">Salvar e ativar prospecção</button>
+    <p class="aviso" id="msg-novo"></p>
+  </form>
+</section>
+
+<section class="folha" id="folha-follow" hidden>
+  <div class="folha-topo"><h2>Follow-up</h2><button class="fantasma" type="button" id="fechar-follow">Fechar</button></div>
+  <div class="bloco" id="lista-follow"><p class="sub">Carregando…</p></div>
 </section>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -129,7 +175,9 @@ const ASSUNTO_EMAIL = "RestoClean X-10: limpeza por imersão no combate à gordu
 const DIAS_RETORNO = 3;
 const PRECISAO_APROX = { cep: "localização pelo CEP", localidade: "localização pelo bairro", logradouro: "localização pela rua" };
 
-let estado = { raio: 1000, filtros: new Set(["ATIVO", "CANCELADO", "CANCELADO_COM_CNPJ_ATIVO", "PROSPECT", "OPORTUNIDADE"]), centro: null, dados: [] };
+const CATEGORIAS = ["RESTAURANTE", "HAMBURGUERIA", "PIZZARIA", "LANCHONETE", "PADARIA", "SUPERMERCADO", "DELIVERY", "COMIDA PARA CASA", "CHURRASCARIA", "JAPONES", "REFEICAO COLETIVA", "HOTEL", "BUFE", "BAR", "CANTINA", "INDUSTRIA ALIMENTICIA", "OUTRO"];
+let modoNovo = false, pontoNovo = null, marcaNovo = null;
+let estado = { notaMin: 80, categoria: "", raio: 1000, filtros: new Set(["ATIVO", "CANCELADO", "CANCELADO_COM_CNPJ_ATIVO", "PROSPECT", "OPORTUNIDADE"]), centro: null, dados: [] };
 let mapa, camada, marcaVoce, circulo, visiveis = [];
 
 const $ = (id) => document.getElementById(id);
@@ -167,7 +215,9 @@ function abrirApp() {
     maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(mapa);
   camada = L.layerGroup().addTo(mapa);
-  mapa.on("click", (e) => buscar(e.latlng.lat, e.latlng.lng, false));
+  mapa.on("click", (e) => modoNovo ? escolherPonto(e.latlng.lat, e.latlng.lng) : buscar(e.latlng.lat, e.latlng.lng, false));
+  montarNovoEFollow();
+  contarFollow();
   document.addEventListener("click", ativarPeloBotao);
   montarControles();
   localizar();
@@ -191,6 +241,9 @@ function montarControles() {
     desenhar();
   };
   $("btn-local").onclick = localizar;
+  $("nota-min").onchange = (e) => { estado.notaMin = +e.target.value; if (estado.centro) buscar(estado.centro[0], estado.centro[1], false); };
+  $("categoria").innerHTML += CATEGORIAS.filter((c) => c !== "OUTRO").map((c) => `<option value="${c}">${c[0] + c.slice(1).toLowerCase()}</option>`).join("");
+  $("categoria").onchange = (e) => { estado.categoria = e.target.value; desenhar(); };
 }
 
 function localizar() {
@@ -214,7 +267,7 @@ async function buscar(lat, lon, ehVoce) {
   mapa.fitBounds(circulo.getBounds(), { padding: [10, 10] });
   $("resumo").textContent = "Buscando…";
   const args = { p_lat: lat, p_lon: lon, p_raio_m: estado.raio };
-  const [loc, pro] = await Promise.all([db.rpc("locais_proximos", args), db.rpc("prospects_proximos", args)]);
+  const [loc, pro] = await Promise.all([db.rpc("locais_proximos", args), db.rpc("prospects_proximos", { ...args, p_nota_min: estado.notaMin })]);
   if (loc.error) { $("resumo").textContent = "Não foi possível buscar os clientes: " + loc.error.message; return; }
   const prospects = pro.error ? [] : (pro.data || []);
   estado.dados = [
@@ -227,7 +280,7 @@ async function buscar(lat, lon, ehVoce) {
 
 function desenhar() {
   camada.clearLayers();
-  visiveis = estado.dados.filter((d) => estado.filtros.has(grupo(d)));
+  visiveis = estado.dados.filter((d) => estado.filtros.has(grupo(d)) && (!estado.categoria || d.tipo !== "PROSPECT" || d.segmento === estado.categoria));
   for (const k of Object.keys(STATUS)) {
     const n = estado.dados.filter((d) => grupo(d) === k).length;
     const el = document.querySelector(`[data-n="${k}"]`); if (el) el.textContent = n ? `· ${n}` : "";
@@ -244,7 +297,7 @@ function desenhar() {
       radius: ehP ? 6 : 7, color: "#fff", weight: 2, fillColor: s.hex, fillOpacity: 0.95,
     }).bindPopup(() => ehP ? popupProspect(d, s) : popupLocal(d, s), { maxWidth: 320 }).addTo(camada);
     const sub = ehP
-      ? `${esc(d.segmento)} · nota ${d.nota}${d.expansao_rede ? " · rede de cliente" : ""} · ${esc(d.bairro)}`
+      ? `${esc(d.segmento)} · ${d.nota == null ? "cadastrado em campo" : "nota " + d.nota}${d.expansao_rede ? " · rede de cliente" : ""} · ${esc(d.bairro)}`
       : `${esc(d.endereco)} · ${esc(d.bairro)}${d.vendedor ? " · " + esc(d.vendedor) : ""}`;
     itens.push(`<li data-i="${i}"><span class="ponto" style="background:${s.cor}"></span><div><div class="nome">${esc(d.cliente || d.endereco)}</div><div class="sub">${sub}</div></div><div class="dist">${km(d.distancia_m)}</div></li>`);
   });
@@ -298,7 +351,7 @@ function popupProspect(d, s) {
        <p class="aviso" id="msg-${d.cnpj}"></p>`
     : `<p><b>${ROTULO_FUNIL[d.oportunidade_status] || d.oportunidade_status}</b>${d.oportunidade_status === "ATIVADO" ? " em " + dataBR(d.ativado_em) : ""}</p>${d.observacao ? `<p class="aviso">${esc(d.observacao)}</p>` : ""}
        ${["ATIVADO", "PROPOSTA_ENVIADA"].includes(d.oportunidade_status) ? envio : ""}`;
-  return `<div class="popup"><span class="selo" style="background:${s.hex}">${s.nome}</span> <span class="nota">Nota ${d.nota}</span>
+  return `<div class="popup"><span class="selo" style="background:${s.hex}">${s.nome}</span> <span class="nota">${d.nota == null ? "Campo" : "Nota " + d.nota}</span>
     <h3>${esc(d.nome)}</h3>
     <p>${esc(d.segmento)}${d.expansao_rede ? " · <b>outra unidade de um cliente</b>" : ""}</p>
     <p>${esc(d.endereco)} · ${esc(d.bairro)}, ${esc(d.cidade)}</p>
@@ -361,6 +414,142 @@ async function confirmarEnvio(b) {
   const d = estado.dados.find((x) => x.cnpj === cnpj && x.tipo === "PROSPECT");
   if (d) d.oportunidade_status = "PROPOSTA_ENVIADA";
   msg.textContent = `Registrado: proposta por ${canal === "WHATSAPP" ? "WhatsApp" : "e-mail"} para ${destino}. Retorno em ${dataBR(retorno)}.`;
+}
+
+// ---------- Novo ponto ----------
+function montarNovoEFollow() {
+  $("novo-cat").innerHTML = CATEGORIAS.map((c) => `<option value="${c}">${c[0] + c.slice(1).toLowerCase()}</option>`).join("");
+  $("btn-novo").onclick = () => { modoNovo = true; $("faixa-novo").hidden = false; mapa.closePopup(); };
+  $("cancelar-novo").onclick = sairModoNovo;
+  $("usar-gps").onclick = () => navigator.geolocation.getCurrentPosition(
+    (p) => escolherPonto(p.coords.latitude, p.coords.longitude),
+    () => { $("faixa-novo").firstChild.textContent = "Localização não liberada. Toque no mapa. "; },
+    { enableHighAccuracy: true, timeout: 12000 });
+  $("fechar-novo").onclick = () => { $("folha-novo").hidden = true; sairModoNovo(); };
+  $("form-novo").addEventListener("submit", salvarNovo);
+  $("btn-follow").onclick = abrirFollow;
+  $("fechar-follow").onclick = () => { $("folha-follow").hidden = true; };
+  $("lista-follow").addEventListener("click", acaoFollow);
+  $("lista-follow").addEventListener("change", mudarStatusFollow);
+}
+
+function sairModoNovo() {
+  modoNovo = false; $("faixa-novo").hidden = true;
+  if (marcaNovo) { marcaNovo.remove(); marcaNovo = null; }
+}
+
+function escolherPonto(lat, lon) {
+  pontoNovo = [lat, lon];
+  if (marcaNovo) marcaNovo.remove();
+  marcaNovo = L.circleMarker([lat, lon], { radius: 9, color: "#fff", weight: 3, fillColor: "#14336e", fillOpacity: 1 }).addTo(mapa);
+  $("faixa-novo").hidden = true;
+  $("novo-local").textContent = `Local marcado: ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  $("msg-novo").textContent = "";
+  $("folha-novo").hidden = false;
+  $("novo-nome").focus();
+}
+
+async function salvarNovo(e) {
+  e.preventDefault();
+  const b = $("salvar-novo"); b.disabled = true; b.textContent = "Salvando…";
+  const { data, error } = await db.rpc("novo_ponto", {
+    p_nome: $("novo-nome").value, p_telefone: $("novo-tel").value.trim() || null,
+    p_lat: pontoNovo[0], p_lon: pontoNovo[1], p_segmento: $("novo-cat").value,
+    p_observacao: $("novo-obs").value.trim() || null, p_cnpj: $("novo-cnpj").value.trim() || null,
+  });
+  b.disabled = false; b.textContent = "Salvar e ativar prospecção";
+  if (error) {
+    $("msg-novo").textContent = error.code === "23505" ? "Esse CNPJ já está ativado no funil." : "Não foi possível salvar: " + error.message;
+    return;
+  }
+  $("form-novo").reset(); $("folha-novo").hidden = true; sairModoNovo();
+  await buscar(pontoNovo[0], pontoNovo[1], false);
+  const d = estado.dados.find((x) => x.cnpj === data);
+  if (d && d._m) d._m.openPopup();
+  contarFollow();
+}
+
+// ---------- Follow-up ----------
+const hojeISO = () => new Date().toISOString().slice(0, 10);
+
+async function carregarFollow() {
+  return db.from("oportunidades")
+    .select("cnpj,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao,prospects(nome_fantasia,razao_social,telefone1,bairro,cidade,segmento,latitude,longitude)")
+    .in("status", ["ATIVADO", "PROPOSTA_ENVIADA", "EM_NEGOCIACAO"])
+    .order("retorno_em", { ascending: true, nullsFirst: false });
+}
+
+async function contarFollow() {
+  const { data } = await carregarFollow();
+  const n = (data || []).filter((o) => o.retorno_em && o.retorno_em <= hojeISO()).length;
+  $("n-follow").textContent = n ? `· ${n}` : "";
+}
+
+async function abrirFollow() {
+  $("folha-follow").hidden = false;
+  $("lista-follow").innerHTML = '<p class="sub">Carregando…</p>';
+  const { data, error } = await carregarFollow();
+  if (error) { $("lista-follow").innerHTML = `<p class="erro">Não foi possível carregar: ${esc(error.message)}</p>`; return; }
+  const hoje = hojeISO();
+  const grupos = [
+    ["Retorno hoje ou atrasado", data.filter((o) => o.retorno_em && o.retorno_em <= hoje)],
+    ["Próximos retornos", data.filter((o) => o.retorno_em && o.retorno_em > hoje)],
+    ["Ativados, proposta ainda não enviada", data.filter((o) => !o.retorno_em)],
+  ];
+  $("lista-follow").innerHTML = grupos.map(([titulo, itens]) => `<h3>${titulo} · ${itens.length}</h3>` +
+    (itens.length ? itens.map(cartaoFollow).join("") : '<p class="sub">Nada aqui.</p>')).join("");
+}
+
+function cartaoFollow(o) {
+  const p = o.prospects || {};
+  const nome = p.nome_fantasia || p.razao_social || o.cnpj;
+  const atrasado = o.retorno_em && o.retorno_em < hojeISO();
+  const linhaEnvio = o.proposta_enviada_em
+    ? `Proposta por ${o.canal === "EMAIL" ? "e-mail" : "WhatsApp"} para ${esc(o.destino)} em ${dataBR(o.proposta_enviada_em)}`
+    : `Ativado em ${dataBR(o.ativado_em)}`;
+  const retorno = o.retorno_em ? `<span class="${atrasado ? "atrasado" : ""}">Retorno: ${dataBR(o.retorno_em)}</span>` : "";
+  const whats = o.canal === "WHATSAPP" ? telWhats(o.destino) : telWhats(p.telefone1);
+  return `<div class="fu"><div class="nome">${esc(nome)}</div>
+    <div class="sub">${esc(p.segmento || "")} · ${esc(p.bairro || "")}, ${esc(p.cidade || "")}</div>
+    <div class="sub">${linhaEnvio}${retorno ? " · " + retorno : ""}</div>
+    ${o.observacao ? `<div class="sub">${esc(o.observacao)}</div>` : ""}
+    <div class="acoes">
+      ${whats ? `<button type="button" class="fantasma" data-fu-whats="${whats}">Abrir conversa</button>` : ""}
+      <button type="button" class="fantasma" data-fu-mapa="${o.cnpj}" data-lat="${p.latitude}" data-lon="${p.longitude}">Ver no mapa</button>
+      ${o.retorno_em ? `<button type="button" class="fantasma" data-fu-adiar="${o.cnpj}">Retorno feito · +${DIAS_RETORNO} dias</button>` : ""}
+      <select class="fantasma" data-fu-status="${o.cnpj}" aria-label="Mudar situação">
+        <option value="">Mudar situação…</option><option value="EM_NEGOCIACAO">Em negociação</option>
+        <option value="GANHO">Ganho (fechou)</option><option value="PERDIDO">Perdido</option>
+      </select>
+    </div></div>`;
+}
+
+async function acaoFollow(e) {
+  const w = e.target.closest("[data-fu-whats]");
+  if (w) { window.open(`https://wa.me/55${w.dataset.fuWhats}`, "_blank", "noopener"); return; }
+  const m = e.target.closest("[data-fu-mapa]");
+  if (m) {
+    $("folha-follow").hidden = true;
+    await buscar(+m.dataset.lat, +m.dataset.lon, false);
+    const d = estado.dados.find((x) => x.cnpj === m.dataset.fuMapa);
+    if (d && d._m) d._m.openPopup();
+    return;
+  }
+  const a = e.target.closest("[data-fu-adiar]");
+  if (a) {
+    a.disabled = true;
+    const novo = new Date(Date.now() + DIAS_RETORNO * 86400000).toISOString().slice(0, 10);
+    const { error } = await db.from("oportunidades").update({ retorno_em: novo, atualizado_em: new Date().toISOString() }).eq("cnpj", a.dataset.fuAdiar);
+    if (error) { a.disabled = false; a.textContent = "Erro: " + error.message; return; }
+    abrirFollow(); contarFollow();
+  }
+}
+
+async function mudarStatusFollow(e) {
+  const sel = e.target.closest("[data-fu-status]"); if (!sel || !sel.value) return;
+  const { error } = await db.from("oportunidades").update({ status: sel.value, atualizado_em: new Date().toISOString() }).eq("cnpj", sel.dataset.fuStatus);
+  if (error) { sel.insertAdjacentHTML("afterend", `<span class="erro">${esc(error.message)}</span>`); return; }
+  abrirFollow(); contarFollow();
 }
 </script>
 </body>
