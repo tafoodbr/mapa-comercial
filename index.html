@@ -489,14 +489,22 @@ async function localizarEndereco() {
   const rua = $("novo-end").value.trim(), num = $("novo-num").value.trim();
   const cidade = $("novo-cidade").value.trim(), uf = $("novo-uf").value.trim(), cep = $("novo-cep").value.replace(/\D/g, "");
   if (!rua || !cidade) return null;
-  const q = new URLSearchParams({ format: "jsonv2", limit: "1", countrycodes: "br", street: `${num} ${rua}`.trim(), city: cidade, state: uf });
-  try {
-    let r = await (await fetch("https://nominatim.openstreetmap.org/search?" + q)).json();
-    if (!r.length && cep.length === 8) {
-      r = await (await fetch("https://nominatim.openstreetmap.org/search?" + new URLSearchParams({ format: "jsonv2", limit: "1", countrycodes: "br", postalcode: cep }))).json();
-    }
-    return r.length ? [+r[0].lat, +r[0].lon] : null;
-  } catch { return null; }
+  const nomi = (params) => fetch("https://nominatim.openstreetmap.org/search?" +
+    new URLSearchParams({ format: "jsonv2", limit: "1", countrycodes: "br", ...params })).then((r) => r.json())
+    .then((r) => r.length ? [+r[0].lat, +r[0].lon] : null);
+  const photon = (q) => fetch("https://photon.komoot.io/api/?" + new URLSearchParams({ q, limit: "1", lat: "-23.55", lon: "-46.63" }))
+    .then((r) => r.json()).then((j) => j.features && j.features.length ? [j.features[0].geometry.coordinates[1], j.features[0].geometry.coordinates[0]] : null);
+  const tentativas = [
+    () => nomi({ street: `${num} ${rua}`.trim(), city: cidade, state: uf }),
+    () => nomi({ q: `${rua}, ${num}, ${cidade}, ${uf}, Brasil` }),
+    () => photon(`${rua} ${num} ${cidade} ${uf}`),
+    () => nomi({ street: rua, city: cidade, state: uf }),
+    () => cep.length === 8 ? nomi({ postalcode: cep }) : null,
+  ];
+  for (const t of tentativas) {
+    try { const r = await t(); if (r) return r; } catch { /* tenta a próxima */ }
+  }
+  return null;
 }
 
 function escolherPonto(lat, lon) {
@@ -517,7 +525,11 @@ async function salvarNovo(e) {
     pontoNovo = cnpjBase && cnpjBase.lat != null ? [cnpjBase.lat, cnpjBase.lon] : await localizarEndereco();
     if (!pontoNovo) {
       b.disabled = false; b.textContent = "Salvar e ativar prospecção";
-      $("msg-novo").textContent = "Não encontrei esse endereço no mapa. Confira rua, número e cidade, ou feche e marque o local tocando no mapa.";
+      $("msg-novo").innerHTML = 'Não encontrei esse endereço no mapa. <button type="button" class="primario" id="marcar-no-mapa" style="width:100%;margin-top:6px">Marcar no mapa (os dados ficam guardados)</button>';
+      $("marcar-no-mapa").onclick = () => {
+        $("folha-novo").hidden = true; modoNovo = true; $("faixa-novo").hidden = false;
+        if (estado.centro) mapa.setView(estado.centro, 15);
+      };
       return;
     }
   }
@@ -575,7 +587,7 @@ async function buscarCnpj() {
     .select("nome_fantasia,razao_social,telefone1,cep,endereco,numero,bairro,cidade,uf,segmento,nota,latitude,longitude,instagram")
     .eq("cnpj", cnpj).maybeSingle();
   cnpjBase = data ? { lat: data.latitude, lon: data.longitude } : null;
-  if (!data) { $("cnpj-info").textContent = "CNPJ não está na base. Preencha os dados abaixo."; return; }
+  if (!data) { await buscarCnpjBrasilApi(cnpj); return; }
   $("novo-nome").value = data.nome_fantasia || data.razao_social || "";
   $("novo-tel").value = data.telefone1 || "";
   $("novo-cep").value = data.cep || ""; ultimoCep = data.cep || "";
@@ -587,6 +599,29 @@ async function buscarCnpj() {
   if (CATEGORIAS.includes(data.segmento)) $("novo-cat").value = data.segmento;
   if (data.instagram && !$("novo-ig").value) $("novo-ig").value = data.instagram;
   $("cnpj-info").textContent = `Encontrado na base da Receita${data.nota != null ? " (nota " + data.nota + ")" : ""}. Ao salvar, ele é ativado no ponto que já está no mapa.`;
+}
+
+// CNPJ fora da nossa base (MEI, outra cidade): consulta a BrasilAPI, serviço público com dados da Receita.
+async function buscarCnpjBrasilApi(cnpj) {
+  $("cnpj-info").textContent = "Não está na nossa base. Consultando a Receita…";
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+    if (!r.ok) throw new Error();
+    const j = await r.json();
+    if (!$("novo-nome").value) $("novo-nome").value = j.nome_fantasia || j.razao_social || "";
+    if (!$("novo-tel").value && j.ddd_telefone_1) $("novo-tel").value = j.ddd_telefone_1;
+    if (j.cep) { $("novo-cep").value = j.cep; ultimoCep = String(j.cep).replace(/\D/g, ""); }
+    const rua = [j.descricao_tipo_de_logradouro, j.logradouro].filter(Boolean).join(" ");
+    if (rua) $("novo-end").value = rua;
+    if (j.numero) $("novo-num").value = j.numero;
+    if (j.bairro) $("novo-bairro").value = j.bairro;
+    if (j.municipio) $("novo-cidade").value = j.municipio;
+    if (j.uf) $("novo-uf").value = j.uf;
+    const sit = j.descricao_situacao_cadastral ? ` Situação: ${j.descricao_situacao_cadastral}.` : "";
+    $("cnpj-info").textContent = `Dados preenchidos pela Receita (fora da nossa base de prospects).${sit}`;
+  } catch {
+    $("cnpj-info").textContent = "CNPJ não encontrado na nossa base nem na consulta da Receita. Preencha os dados abaixo.";
+  }
 }
 
 // ---------- Follow-up ----------
