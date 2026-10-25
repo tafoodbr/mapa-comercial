@@ -152,7 +152,7 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-0050</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-0100</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
@@ -246,6 +246,24 @@ const RAIOS = [500, 1000, 2000, 5000];
 const MENSAGEM_PADRAO = "Olá, talvez você saiba, mas, talvez não saiba. O Sistema de Limpeza RestoClean X-10 é o maior aliado dos restaurantes no combate à gordura. Arrisco afirmar que economia de mão de obra, melhor eficiência operacional e economia de produtos de limpeza são alguns dos principais benefícios. Provavelmente algum restaurante de destaque próximo a você pode estar aplicando a nossa limpeza por imersão.\n\nVeja na prática: https://www.instagram.com/reel/DbqS_tzRrYa/";
 const ASSUNTO_EMAIL = "RestoClean X-10: limpeza por imersão no combate à gordura";
 const DIAS_RETORNO = 3;
+const RAIO_PROVA = 2000;   // raio da prova social (metros)
+const provaSocial = {};    // chave do ponto -> { total, nomes }
+
+// Monta a mensagem final: texto padrão + (opcional) prova social antes do link do vídeo.
+function mensagemPara(k) {
+  const i = idk(k), p = provaSocial[k];
+  if (!p || !p.total || !document.getElementById("provamsg-" + i)?.checked) return MENSAGEM_PADRAO;
+  let frase = `Hoje, ${p.total} ${p.total === 1 ? "estabelecimento" : "estabelecimentos"} num raio de ${RAIO_PROVA / 1000} km de vocês já ${p.total === 1 ? "usa" : "usam"} a RestoClean.`;
+  if (document.getElementById("provanomes-" + i)?.checked && p.nomes.length) {
+    const minusc = new Set(["de", "da", "do", "das", "dos", "e"]);
+    const titulo = (t) => t.toLowerCase().replace(/\([^)]*\)/g, "").trim().split(/\s+/)
+      .map((w, j) => j && minusc.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    const n = p.nomes.slice(0, 3).map(titulo);
+    frase += ` Entre eles: ${n.length > 1 ? n.slice(0, -1).join(", ") + " e " + n[n.length - 1] : n[0]}.`;
+  }
+  const corte = MENSAGEM_PADRAO.indexOf("\n\nVeja na prática");
+  return corte > 0 ? MENSAGEM_PADRAO.slice(0, corte) + " " + frase + MENSAGEM_PADRAO.slice(corte) : MENSAGEM_PADRAO + "\n\n" + frase;
+}
 const PRECISAO_APROX = { cep: "localização pelo CEP", localidade: "localização pelo bairro", logradouro: "localização pela rua" };
 
 const CATEGORIAS = ["RESTAURANTE", "HAMBURGUERIA", "PIZZARIA", "LANCHONETE", "PADARIA", "SUPERMERCADO", "DELIVERY", "COMIDA PARA CASA", "CHURRASCARIA", "JAPONES", "REFEICAO COLETIVA", "HOTEL", "BUFE", "BAR", "CANTINA", "INDUSTRIA ALIMENTICIA", "OUTRO"];
@@ -429,6 +447,7 @@ function abrirFicha(d) {
   $("ficha-corpo").innerHTML = d.tipo === "PROSPECT" ? popupProspect(d, s) : popupLocal(d, s);
   $("ficha").hidden = false;
   if (d.oportunidade_status) carregarAnotacoes(fichaChave);
+  carregarProva(d);
   if (marcaSel) marcaSel.remove();
   marcaSel = L.circleMarker([d.latitude, d.longitude], { radius: 14, color: s.hex, weight: 3, fill: false, interactive: false }).addTo(mapa);
 }
@@ -471,6 +490,8 @@ function blocoFunil(d, rotuloAtivar, telefones, email) {
   const k = chaveDe(d), i = idk(k), ke = esc(k);
   const tel1 = telefones.map(telWhats).find(Boolean) || "";
   const envio = `<p style="margin-top:8px"><b>Enviar proposta</b></p>
+       <label style="display:flex;gap:6px;align-items:center;color:var(--fg)"><input type="checkbox" id="provamsg-${i}" checked> Incluir prova social (quantos clientes ativos por perto)</label>
+       <label style="display:flex;gap:6px;align-items:center;color:var(--fg)"><input type="checkbox" id="provanomes-${i}"> Citar nomes de até 3 clientes</label>
        <label>WhatsApp (DDD + número)<input id="wa-${i}" inputmode="tel" value="${tel1}"></label>
        ${tel1 && pareceFixo(tel1) ? `<p class="aviso">Esse número parece fixo; o WhatsApp pode não abrir. Confira um celular no Google Maps.</p>` : ""}
        <button type="button" class="primario" data-whats="${ke}">Abrir WhatsApp com a mensagem</button>
@@ -498,6 +519,24 @@ function blocoFunil(d, rotuloAtivar, telefones, email) {
        ${["ATIVADO", "PROPOSTA_ENVIADA"].includes(d.oportunidade_status) ? envio : ""}`;
 }
 
+function blocoProva(d) {
+  if (d.tipo === "LOCAL" && d.status_local === "ATIVO") return "";
+  return `<div class="fu" style="margin-top:8px;border-left:4px solid var(--ativo)" id="prova-${idk(chaveDe(d))}"><span class="sub">Calculando clientes ativos por perto…</span></div>`;
+}
+async function carregarProva(d) {
+  const k = chaveDe(d), el = document.getElementById("prova-" + idk(k)); if (!el) return;
+  const { data, error } = await db.rpc("prova_social", { p_lat: d.latitude, p_lon: d.longitude, p_raio_m: RAIO_PROVA });
+  if (error) { el.innerHTML = '<span class="sub">Prova social indisponível (falta rodar o SQL da prova social).</span>'; return; }
+  const total = data.length ? data[0].total : 0;
+  const nomes = [...new Set(data.map((c) => c.cliente).filter(Boolean))];
+  provaSocial[k] = { total, nomes };
+  el.innerHTML = total
+    ? `<b>${total} ${total === 1 ? "cliente ativo" : "clientes ativos"} em ${RAIO_PROVA / 1000} km</b>
+       <ul class="hist">${data.slice(0, 5).map((c) => `<li>${esc(c.cliente)} <span class="sub">· ${esc(c.bairro || "")} · ${km(c.distancia_m)}</span></li>`).join("")}</ul>
+       ${total > 5 ? `<span class="sub">e mais ${total - 5}</span>` : ""}`
+    : `<span class="sub">Nenhum cliente ativo em ${RAIO_PROVA / 1000} km. Sem prova social por aqui ainda.</span>`;
+}
+
 function blocoSituacao(d) {
   if (d.tipo === "LOCAL" && d.status_local === "ATIVO") return "";
   const ke = esc(chaveDe(d)), i = idk(chaveDe(d));
@@ -519,6 +558,7 @@ function popupLocal(d, s) {
     <p>${valor} · Modelo: ${esc(d.modelo || "—")}</p>
     <p>Instalação: ${dataBR(d.dt_instalacao)} · Vendedor: ${esc(d.vendedor || "—")}</p>
     <p>Contato: ${esc(d.contato || "—")}</p>${aproximado(d)}
+    ${blocoProva(d)}
     <div class="links"><a href="https://www.google.com/search?q=${busca("site:instagram.com " + d.cliente + " " + d.cidade)}" target="_blank" rel="noopener">Buscar no Instagram</a>
       <a href="https://www.google.com/maps/search/?api=1&query=${busca(d.cliente + " " + d.endereco + " " + d.cidade)}" target="_blank" rel="noopener">Google Maps</a></div>
     ${blocoInstagram(d)}
@@ -546,6 +586,7 @@ function popupProspect(d, s) {
     <p>${esc(d.endereco)} · ${esc(d.bairro)}, ${esc(d.cidade)}</p>
     <p>Telefone: ${tel}</p>
     <p>${esc(d.porte || "—")} · ${d.anos_de_abertura ?? "—"} anos de CNPJ${d.unidades_na_regiao > 1 ? ` · ${d.unidades_na_regiao} unidades` : ""}</p>${aproximado(d)}
+    ${blocoProva(d)}
     <div class="links">${links}</div>
     ${blocoInstagram(d)}
     <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p>
@@ -623,23 +664,23 @@ function abrirEnvio(k, canal) {
     if (!h) { msg.textContent = "Digite o @ do perfil, por exemplo @restaurante."; return; }
     // O Direct não aceita texto pronto: a mensagem vai para a área de transferência e é só colar.
     let copiou = true;
-    try { navigator.clipboard.writeText(MENSAGEM_PADRAO).catch(() => { copiou = false; }); } catch { copiou = false; }
+    try { navigator.clipboard.writeText(mensagemPara(k)).catch(() => { copiou = false; }); } catch { copiou = false; }
     window.open(`https://ig.me/m/${encodeURIComponent(h)}`, "_blank", "noopener");
     gravarInstagram(k, h);   // salva o @ no cadastro
     destino = "@" + h;
     msg.innerHTML = `Mensagem copiada: no Direct, toque e segure na caixa de texto e escolha <b>Colar</b>. ` +
       `Enviou? <button type="button" class="primario" data-enviei="${esc(k)}" data-canal="INSTAGRAM" data-destino="${esc(destino)}">Sim, enviei</button>`;
-    setTimeout(() => { if (!copiou) msg.insertAdjacentHTML("afterbegin", `<span class="erro">Não consegui copiar sozinho. Copie o texto abaixo:</span><br><textarea readonly rows="4">${esc(MENSAGEM_PADRAO)}</textarea>`); }, 300);
+    setTimeout(() => { if (!copiou) msg.insertAdjacentHTML("afterbegin", `<span class="erro">Não consegui copiar sozinho. Copie o texto abaixo:</span><br><textarea readonly rows="4">${esc(mensagemPara(k))}</textarea>`); }, 300);
     return;
   }
   if (canal === "WHATSAPP") {
     destino = telWhats(document.getElementById("wa-" + i).value);
     if (!destino) { msg.textContent = "Digite o WhatsApp com DDD, por exemplo 11 91234-5678."; return; }
-    link = `https://wa.me/55${destino}?text=${encodeURIComponent(MENSAGEM_PADRAO)}`;
+    link = `https://wa.me/55${destino}?text=${encodeURIComponent(mensagemPara(k))}`;
   } else {
     destino = document.getElementById("em-" + i).value.trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(destino)) { msg.textContent = "Digite um e-mail válido."; return; }
-    link = `mailto:${destino}?subject=${encodeURIComponent(ASSUNTO_EMAIL)}&body=${encodeURIComponent(MENSAGEM_PADRAO)}`;
+    link = `mailto:${destino}?subject=${encodeURIComponent(ASSUNTO_EMAIL)}&body=${encodeURIComponent(mensagemPara(k))}`;
   }
   window.open(link, "_blank", "noopener");
   const nome = canal === "WHATSAPP" ? "WhatsApp" : "e-mail";
