@@ -221,6 +221,9 @@ const idk = (k) => String(k).replace(/[^A-Za-z0-9_-]/g, "_");
 const alvo = (k) => k.startsWith("L:") ? ["chave_local", k.slice(2)] : ["cnpj", k];
 const acharPorChave = (k) => estado.dados.find((x) => chaveDe(x) === k);
 const PODE_REATIVAR = ["CANCELADO", "CANCELADO_COM_CNPJ_ATIVO"];
+const NOME_CANAL = { WHATSAPP: "WhatsApp", EMAIL: "e-mail", INSTAGRAM: "Instagram" };
+const limparInstagram = (t) => String(t || "").trim().toLowerCase().replace(/^.*instagram\.com\//, "").replace(/^@/, "")
+  .replace(/[/?#].*$/, "").replace(/[^a-z0-9._]/g, "");
 
 // Login
 $("form-login").addEventListener("submit", async (e) => {
@@ -350,6 +353,8 @@ function blocoFunil(d, rotuloAtivar, telefones, email) {
        <button type="button" class="primario" data-whats="${ke}">Abrir WhatsApp com a mensagem</button>
        <label style="margin-top:6px">E-mail<input id="em-${i}" type="email" value="${esc(email || "")}"></label>
        <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-email="${ke}">Abrir e-mail com a mensagem</button>
+       <label style="margin-top:6px">Instagram (@)<input id="igenv-${i}" value="${esc(d.instagram || "")}" placeholder="@perfil ou link"></label>
+       <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-insta="${ke}">Copiar mensagem e abrir Direct</button>
        <p class="aviso" id="env-${i}"></p>`;
   if (!d.oportunidade_status) {
     return `<textarea id="obs-${i}" placeholder="Observação (opcional): com quem falou, interesse, melhor horário…"></textarea>
@@ -371,6 +376,9 @@ function popupLocal(d, s) {
     <p>${valor} · Modelo: ${esc(d.modelo || "—")}</p>
     <p>Instalação: ${dataBR(d.dt_instalacao)} · Vendedor: ${esc(d.vendedor || "—")}</p>
     <p>Contato: ${esc(d.contato || "—")}</p>${aproximado(d)}
+    <div class="links"><a href="https://www.google.com/search?q=${busca("site:instagram.com " + d.cliente + " " + d.cidade)}" target="_blank" rel="noopener">Buscar no Instagram</a>
+      <a href="https://www.google.com/maps/search/?api=1&query=${busca(d.cliente + " " + d.endereco + " " + d.cidade)}" target="_blank" rel="noopener">Google Maps</a></div>
+    ${blocoInstagram(d)}
     <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p>
     ${PODE_REATIVAR.includes(d.status_local) || d.oportunidade_status ? blocoFunil(d, "Ativar reativação", [d.contato], "") : ""}</div>`;
 }
@@ -401,30 +409,41 @@ function popupProspect(d, s) {
 }
 
 function blocoInstagram(d) {
+  const k = chaveDe(d), i = idk(k);
   if (d.instagram) {
     return `<div class="links"><b>@${esc(d.instagram)}</b>
       <a href="https://www.instagram.com/${encodeURIComponent(d.instagram)}/" target="_blank" rel="noopener">Ver perfil</a>
       <a href="https://ig.me/m/${encodeURIComponent(d.instagram)}" target="_blank" rel="noopener">Mandar Direct</a></div>`;
   }
   return `<div class="duas" style="align-items:end;margin-top:4px">
-      <label>Instagram (@) <input id="ig-${d.cnpj}" placeholder="@perfil ou link"></label>
-      <button type="button" class="fantasma" data-ig-salvar="${d.cnpj}">Salvar @</button></div>
-    <p class="aviso" id="igmsg-${d.cnpj}"></p>`;
+      <label>Instagram (@) <input id="ig-${i}" placeholder="@perfil ou link"></label>
+      <button type="button" class="fantasma" data-ig-salvar="${esc(k)}">Salvar @</button></div>
+    <p class="aviso" id="igmsg-${i}"></p>`;
 }
 
-async function salvarInstagram(cnpj) {
-  const campo = document.getElementById("ig-" + cnpj), msg = document.getElementById("igmsg-" + cnpj);
-  const { data, error } = await db.rpc("salvar_instagram", { p_cnpj: cnpj, p_instagram: campo.value });
+async function gravarInstagram(k, valor) {
+  const [col, val] = alvo(k);
+  const { data, error } = col === "cnpj"
+    ? await db.rpc("salvar_instagram", { p_cnpj: val, p_instagram: valor })
+    : await db.rpc("salvar_instagram_local", { p_chave_local: val, p_instagram: valor });
+  if (!error && data) { const d = acharPorChave(k); if (d) d.instagram = data; }
+  return { data, error };
+}
+
+async function salvarInstagram(k) {
+  const i = idk(k), campo = document.getElementById("ig-" + i), msg = document.getElementById("igmsg-" + i);
+  const { data, error } = await gravarInstagram(k, campo.value);
   if (error) { msg.textContent = "Não foi possível salvar: " + error.message; return; }
   if (!data) { msg.textContent = "Digite o @ do perfil, por exemplo @restaurante."; return; }
-  const d = estado.dados.find((x) => x.cnpj === cnpj && x.tipo === "PROSPECT");
-  if (d) { d.instagram = data; mapa.closePopup(); d._m.openPopup(); }
+  const d = acharPorChave(k);
+  if (d) { mapa.closePopup(); d._m.openPopup(); }
 }
 
 async function ativarPeloBotao(e) {
   if (e.target.closest("[data-ig-salvar]")) return salvarInstagram(e.target.closest("[data-ig-salvar]").dataset.igSalvar);
   if (e.target.closest("[data-whats]")) return abrirEnvio(e.target.closest("[data-whats]").dataset.whats, "WHATSAPP");
   if (e.target.closest("[data-email]")) return abrirEnvio(e.target.closest("[data-email]").dataset.email, "EMAIL");
+  if (e.target.closest("[data-insta]")) return abrirEnvio(e.target.closest("[data-insta]").dataset.insta, "INSTAGRAM");
   if (e.target.closest("[data-enviei]")) return confirmarEnvio(e.target.closest("[data-enviei]"));
   const b = e.target.closest("[data-ativar]"); if (!b) return;
   const k = b.dataset.ativar, i = idk(k), [col, val] = alvo(k);
@@ -448,6 +467,20 @@ async function ativarPeloBotao(e) {
 function abrirEnvio(k, canal) {
   const i = idk(k), msg = document.getElementById("env-" + i);
   let destino, link;
+  if (canal === "INSTAGRAM") {
+    const h = limparInstagram(document.getElementById("igenv-" + i).value);
+    if (!h) { msg.textContent = "Digite o @ do perfil, por exemplo @restaurante."; return; }
+    // O Direct não aceita texto pronto: a mensagem vai para a área de transferência e é só colar.
+    let copiou = true;
+    try { navigator.clipboard.writeText(MENSAGEM_PADRAO).catch(() => { copiou = false; }); } catch { copiou = false; }
+    window.open(`https://ig.me/m/${encodeURIComponent(h)}`, "_blank", "noopener");
+    gravarInstagram(k, h);
+    destino = "@" + h;
+    msg.innerHTML = `Mensagem copiada: no Direct, toque e segure na caixa de texto e escolha <b>Colar</b>. ` +
+      `Enviou? <button type="button" class="primario" data-enviei="${esc(k)}" data-canal="INSTAGRAM" data-destino="${esc(destino)}">Sim, enviei</button>`;
+    setTimeout(() => { if (!copiou) msg.insertAdjacentHTML("afterbegin", `<span class="erro">Não consegui copiar sozinho. Copie o texto abaixo:</span><br><textarea readonly rows="4">${esc(MENSAGEM_PADRAO)}</textarea>`); }, 300);
+    return;
+  }
   if (canal === "WHATSAPP") {
     destino = telWhats(document.getElementById("wa-" + i).value);
     if (!destino) { msg.textContent = "Digite o WhatsApp com DDD, por exemplo 11 91234-5678."; return; }
@@ -475,7 +508,7 @@ async function confirmarEnvio(b) {
   if (error) { b.disabled = false; msg.textContent = "Não foi possível registrar: " + error.message; return; }
   const d = acharPorChave(k);
   if (d) d.oportunidade_status = "PROPOSTA_ENVIADA";
-  msg.textContent = `Registrado: proposta por ${canal === "WHATSAPP" ? "WhatsApp" : "e-mail"} para ${destino}. Retorno em ${dataBR(retorno)}.`;
+  msg.textContent = `Registrado: proposta por ${NOME_CANAL[canal]} para ${destino}. Retorno em ${dataBR(retorno)}.`;
   contarFollow();
 }
 
@@ -704,7 +737,7 @@ const hojeISO = () => new Date().toISOString().slice(0, 10);
 
 async function carregarFollow() {
   return db.from("oportunidades")
-    .select("cnpj,chave_local,tipo,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao,prospects(nome_fantasia,razao_social,telefone1,bairro,cidade,segmento,latitude,longitude,instagram),locais(cliente,razao_social,contato,bairro,cidade,latitude,longitude,mensalidade_ultimo_contrato)")
+    .select("cnpj,chave_local,tipo,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao,prospects(nome_fantasia,razao_social,telefone1,bairro,cidade,segmento,latitude,longitude,instagram),locais(cliente,razao_social,contato,bairro,cidade,latitude,longitude,mensalidade_ultimo_contrato,instagram)")
     .in("status", ["ATIVADO", "PROPOSTA_ENVIADA", "EM_NEGOCIACAO"])
     .order("retorno_em", { ascending: true, nullsFirst: false });
 }
@@ -733,13 +766,13 @@ async function abrirFollow() {
 function cartaoFollow(o) {
   const l = o.locais;
   const p = o.prospects || (l ? { nome_fantasia: l.cliente, razao_social: l.razao_social, telefone1: l.contato, bairro: l.bairro,
-    cidade: l.cidade, latitude: l.latitude, longitude: l.longitude,
+    cidade: l.cidade, latitude: l.latitude, longitude: l.longitude, instagram: l.instagram,
     segmento: `Reativação · última mensalidade ${brl(l.mensalidade_ultimo_contrato)}` } : {});
   const k = o.chave_local ? "L:" + o.chave_local : o.cnpj, ke = esc(k);
   const nome = p.nome_fantasia || p.razao_social || o.cnpj;
   const atrasado = o.retorno_em && o.retorno_em < hojeISO();
   const linhaEnvio = o.proposta_enviada_em
-    ? `Proposta por ${o.canal === "EMAIL" ? "e-mail" : "WhatsApp"} para ${esc(o.destino)} em ${dataBR(o.proposta_enviada_em)}`
+    ? `Proposta por ${NOME_CANAL[o.canal] || o.canal} para ${esc(o.destino)} em ${dataBR(o.proposta_enviada_em)}`
     : `Ativado em ${dataBR(o.ativado_em)}`;
   const retorno = o.retorno_em ? `<span class="${atrasado ? "atrasado" : ""}">Retorno: ${dataBR(o.retorno_em)}</span>` : "";
   const whats = o.canal === "WHATSAPP" ? telWhats(o.destino) : telWhats(p.telefone1);
