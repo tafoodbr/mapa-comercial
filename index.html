@@ -127,7 +127,7 @@ select.chip { padding-right: 8px; }
 
 <section id="app" hidden>
   <header>
-    <h1>Mapa Comercial</h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-2310</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
@@ -774,10 +774,16 @@ async function irPara(r) {
 const hojeISO = () => new Date().toISOString().slice(0, 10);
 
 async function carregarFollow() {
-  return db.from("oportunidades")
-    .select("cnpj,chave_local,tipo,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao,prospects(nome_fantasia,razao_social,telefone1,bairro,cidade,segmento,latitude,longitude,instagram),locais(cliente,razao_social,contato,bairro,cidade,latitude,longitude,mensalidade_ultimo_contrato,instagram)")
+  const base = "cnpj,chave_local,tipo,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao";
+  const consulta = (pros, loc) => db.from("oportunidades").select(`${base},prospects(${pros}),locais(${loc})`)
     .in("status", ["ATIVADO", "PROPOSTA_ENVIADA", "EM_NEGOCIACAO"])
     .order("retorno_em", { ascending: true, nullsFirst: false });
+  const pros = "nome_fantasia,razao_social,telefone1,bairro,cidade,segmento,latitude,longitude";
+  const loc = "cliente,razao_social,contato,bairro,cidade,latitude,longitude,mensalidade_ultimo_contrato";
+  let r = await consulta(pros + ",instagram", loc + ",instagram");
+  if (r.error) r = await consulta(pros + ",instagram", loc);   // banco sem a coluna locais.instagram
+  if (r.error) r = await consulta(pros, loc);                   // banco sem nenhuma coluna de Instagram
+  return r;
 }
 
 async function contarFollow() {
