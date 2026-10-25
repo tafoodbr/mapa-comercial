@@ -113,6 +113,19 @@ select.chip { padding-right: 8px; }
 .hist { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
 .hist li { border-left: 3px solid var(--line); padding: 2px 0 2px 8px; font-size: 13px; overflow-wrap: anywhere; }
 .hist time { display: block; color: var(--muted); font-size: 11px; }
+.bloco-lista { min-height: 0; display: grid; grid-template-rows: auto 1fr; }
+.linha-resumo { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.modos { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; flex: none; }
+.modos button { border: 0; background: var(--bg); padding: 5px 11px; font-size: 13px; }
+.modos button + button { border-left: 1px solid var(--line); }
+.modos button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+/* Modo Mapa: mapa em tela cheia, painel vira uma barra de resumo */
+#app.modo-mapa .painel { max-height: none; grid-template-rows: auto; }
+#app.modo-mapa .painel > .linha, #app.modo-mapa #lista { display: none; }
+/* Modo Lista: só filtros e lista */
+#app.modo-lista { grid-template-rows: auto 1fr; }
+#app.modo-lista #mapa-wrap { display: none; }
+#app.modo-lista .painel { max-height: none; min-height: 0; }
 .voce { width: 16px; height: 16px; border-radius: 50%; background: #1d6fe0; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(29,111,224,.35); }
 </style>
 </head>
@@ -130,7 +143,7 @@ select.chip { padding-right: 8px; }
 
 <section id="app" hidden>
   <header>
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-2335</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-2345</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
@@ -153,8 +166,15 @@ select.chip { padding-right: 8px; }
       </select>
       <select class="chip" id="categoria" aria-label="Categoria dos prospects"><option value="">Todas as categorias</option></select>
     </div>
-    <div>
-      <div class="resumo" id="resumo">Buscando sua localização…</div>
+    <div class="bloco-lista">
+      <div class="linha-resumo">
+        <div class="resumo" id="resumo">Buscando sua localização…</div>
+        <div class="modos" role="group" aria-label="Modo de tela">
+          <button type="button" data-modo="mapa" aria-pressed="false">Mapa</button>
+          <button type="button" data-modo="dividido" aria-pressed="true">Dividido</button>
+          <button type="button" data-modo="lista" aria-pressed="false">Lista</button>
+        </div>
+      </div>
       <ul id="lista"></ul>
     </div>
   </div>
@@ -271,6 +291,7 @@ function abrirApp() {
   mapa.on("click", (e) => modoNovo ? escolherPonto(e.latlng.lat, e.latlng.lng) : buscar(e.latlng.lat, e.latlng.lng, false));
   montarNovoEFollow();
   montarBusca();
+  montarModos();
   $("fechar-ficha").onclick = fecharFicha;
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("ficha").hidden) fecharFicha(); });
   contarFollow();
@@ -364,6 +385,23 @@ function desenhar() {
   };
   // mantém a ficha aberta e atualizada depois de redesenhar
   if (fichaChave) { const d = acharPorChave(fichaChave); if (d && d._m) abrirFicha(d); else fecharFicha(); }
+}
+
+// Modos de tela: Mapa (cheio) | Dividido | Lista (cheia). Lembra a última escolha neste navegador.
+function aplicarModo(modo) {
+  $("app").classList.remove("modo-mapa", "modo-dividido", "modo-lista");
+  $("app").classList.add("modo-" + modo);
+  document.querySelectorAll("[data-modo]").forEach((b) => b.setAttribute("aria-pressed", b.dataset.modo === modo));
+  try { localStorage.setItem("modoTela", modo); } catch { /* sem armazenamento: segue sem lembrar */ }
+  setTimeout(() => mapa && mapa.invalidateSize(), 50);
+}
+function montarModos() {
+  document.querySelector(".modos").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-modo]"); if (b) aplicarModo(b.dataset.modo);
+  });
+  let modo = "dividido";
+  try { modo = localStorage.getItem("modoTela") || "dividido"; } catch { /* padrão */ }
+  aplicarModo(modo);
 }
 
 // Ficha fixa na tela (não se move com o mapa)
