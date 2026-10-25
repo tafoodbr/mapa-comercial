@@ -127,7 +127,7 @@ select.chip { padding-right: 8px; }
 
 <section id="app" hidden>
   <header>
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-2310</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-2320</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
@@ -391,8 +391,11 @@ function blocoFunil(d, rotuloAtivar, telefones, email) {
        <button type="button" class="primario" data-whats="${ke}">Abrir WhatsApp com a mensagem</button>
        <label style="margin-top:6px">E-mail<input id="em-${i}" type="email" value="${esc(email || "")}"></label>
        <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-email="${ke}">Abrir e-mail com a mensagem</button>
-       <label style="margin-top:6px">Instagram (@)<input id="igenv-${i}" value="${esc(d.instagram || "")}" placeholder="@perfil ou link"></label>
-       <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-insta="${ke}">Copiar mensagem e abrir Direct</button>
+       ${d.instagram
+         ? `<input type="hidden" id="igenv-${i}" value="${esc(d.instagram)}">
+            <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-insta="${ke}">Copiar mensagem e abrir Direct para @${esc(d.instagram)}</button>`
+         : `<label style="margin-top:6px">Instagram (@) <span class="aviso">salvo automaticamente ao enviar</span><input id="igenv-${i}" placeholder="@perfil ou link"></label>
+            <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-insta="${ke}">Copiar mensagem e abrir Direct</button>`}
        <p class="aviso" id="env-${i}"></p>`;
   if (!d.oportunidade_status) {
     return `<textarea id="obs-${i}" placeholder="Observação (opcional): com quem falou, interesse, melhor horário…"></textarea>
@@ -449,11 +452,13 @@ function popupProspect(d, s) {
 
 function blocoInstagram(d) {
   const k = chaveDe(d), i = idk(k);
+  const envioAberto = ["ATIVADO", "PROPOSTA_ENVIADA"].includes(d.oportunidade_status);
   if (d.instagram) {
     return `<div class="links"><b>@${esc(d.instagram)}</b>
       <a href="https://www.instagram.com/${encodeURIComponent(d.instagram)}/" target="_blank" rel="noopener">Ver perfil</a>
       <a href="https://ig.me/m/${encodeURIComponent(d.instagram)}" target="_blank" rel="noopener">Mandar Direct</a></div>`;
   }
+  if (envioAberto) return "";   // o @ é informado no bloco "Enviar proposta"
   return `<div class="duas" style="align-items:end;margin-top:4px">
       <label>Instagram (@) <input id="ig-${i}" placeholder="@perfil ou link"></label>
       <button type="button" class="fantasma" data-ig-salvar="${esc(k)}">Salvar @</button></div>
@@ -512,7 +517,7 @@ function abrirEnvio(k, canal) {
     let copiou = true;
     try { navigator.clipboard.writeText(MENSAGEM_PADRAO).catch(() => { copiou = false; }); } catch { copiou = false; }
     window.open(`https://ig.me/m/${encodeURIComponent(h)}`, "_blank", "noopener");
-    gravarInstagram(k, h);
+    gravarInstagram(k, h);   // salva o @ no cadastro
     destino = "@" + h;
     msg.innerHTML = `Mensagem copiada: no Direct, toque e segure na caixa de texto e escolha <b>Colar</b>. ` +
       `Enviou? <button type="button" class="primario" data-enviei="${esc(k)}" data-canal="INSTAGRAM" data-destino="${esc(destino)}">Sim, enviei</button>`;
