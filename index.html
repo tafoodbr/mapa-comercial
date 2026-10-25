@@ -110,6 +110,9 @@ select.chip { padding-right: 8px; }
     padding-left: max(16px, env(safe-area-inset-left)); }
   .ficha-topo { top: -12px; }
 }
+.hist { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.hist li { border-left: 3px solid var(--line); padding: 2px 0 2px 8px; font-size: 13px; overflow-wrap: anywhere; }
+.hist time { display: block; color: var(--muted); font-size: 11px; }
 .voce { width: 16px; height: 16px; border-radius: 50%; background: #1d6fe0; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(29,111,224,.35); }
 </style>
 </head>
@@ -127,7 +130,7 @@ select.chip { padding-right: 8px; }
 
 <section id="app" hidden>
   <header>
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-2320</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-2335</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
@@ -221,6 +224,7 @@ let mapa, camada, marcaVoce, circulo, visiveis = [];
 
 const $ = (id) => document.getElementById(id);
 const brl = (v) => v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const dataHora = (d) => d ? new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 const dataBR = (d) => d ? d.slice(0, 10).split("-").reverse().join("/") : "—";
 const km = (m) => m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -370,9 +374,36 @@ function abrirFicha(d) {
   fichaChave = chaveDe(d);
   $("ficha-corpo").innerHTML = d.tipo === "PROSPECT" ? popupProspect(d, s) : popupLocal(d, s);
   $("ficha").hidden = false;
+  if (d.oportunidade_status) carregarAnotacoes(fichaChave);
   if (marcaSel) marcaSel.remove();
   marcaSel = L.circleMarker([d.latitude, d.longitude], { radius: 14, color: s.hex, weight: 3, fill: false, interactive: false }).addTo(mapa);
 }
+const oportId = {};
+function listaAnotacoes(notas) {
+  return notas.length ? notas.slice().sort((a, b) => b.criado_em.localeCompare(a.criado_em))
+    .map((n) => `<li><time>${dataHora(n.criado_em)}</time>${esc(n.texto)}</li>`).join("")
+    : '<li class="sub">Nenhuma anotação ainda.</li>';
+}
+async function carregarAnotacoes(k) {
+  const lista = document.getElementById("anot-" + idk(k)); if (!lista) return;
+  const [col, val] = alvo(k);
+  const { data, error } = await db.from("oportunidades").select("id,anotacoes(texto,criado_em)").eq(col, val).maybeSingle();
+  if (error || !data) { lista.innerHTML = '<li class="sub">Anotações indisponíveis (falta rodar o SQL de anotações).</li>'; return; }
+  oportId[k] = data.id;
+  lista.innerHTML = listaAnotacoes(data.anotacoes || []);
+}
+async function anotar(b) {
+  const k = b.dataset.anotar, i = idk(k), campo = document.getElementById("anotx-" + i);
+  const texto = campo.value.trim(); if (!texto) { campo.focus(); return; }
+  if (!oportId[k]) await carregarAnotacoes(k);
+  b.disabled = true; b.textContent = "Salvando…";
+  const { error } = await db.from("anotacoes").insert({ oportunidade_id: oportId[k], texto });
+  b.disabled = false; b.textContent = "Salvar anotação";
+  if (error) { document.getElementById("anot-" + i).insertAdjacentHTML("afterbegin", `<li class="erro">Não foi possível salvar: ${esc(error.message)}</li>`); return; }
+  campo.value = "";
+  carregarAnotacoes(k);
+}
+
 function fecharFicha() {
   fichaChave = null; $("ficha").hidden = true;
   if (marcaSel) { marcaSel.remove(); marcaSel = null; }
@@ -403,7 +434,12 @@ function blocoFunil(d, rotuloAtivar, telefones, email) {
        <p class="aviso" id="msg-${i}"></p>`;
   }
   const rotuloStatus = d.tipo === "LOCAL" && d.oportunidade_status === "ATIVADO" ? "Reativação ativada" : (ROTULO_FUNIL[d.oportunidade_status] || d.oportunidade_status);
+  const anot = `<p style="margin-top:12px"><b>Anotações</b></p>
+       <textarea id="anotx-${i}" rows="2" placeholder="Nova anotação: com quem falou, o que ficou combinado…"></textarea>
+       <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-anotar="${ke}">Salvar anotação</button>
+       <ul class="hist" id="anot-${i}"><li class="sub">Carregando…</li></ul>`;
   return `<p><b>${rotuloStatus}</b>${d.oportunidade_status === "ATIVADO" ? " em " + dataBR(d.ativado_em) : ""}</p>${d.observacao ? `<p class="aviso">${esc(d.observacao)}</p>` : ""}
+       ${anot}
        ${["ATIVADO", "PROPOSTA_ENVIADA"].includes(d.oportunidade_status) ? envio : ""}`;
 }
 
@@ -489,6 +525,7 @@ async function ativarPeloBotao(e) {
   if (e.target.closest("[data-email]")) return abrirEnvio(e.target.closest("[data-email]").dataset.email, "EMAIL");
   if (e.target.closest("[data-insta]")) return abrirEnvio(e.target.closest("[data-insta]").dataset.insta, "INSTAGRAM");
   if (e.target.closest("[data-enviei]")) return confirmarEnvio(e.target.closest("[data-enviei]"));
+  if (e.target.closest("[data-anotar]")) return anotar(e.target.closest("[data-anotar]"));
   const b = e.target.closest("[data-ativar]"); if (!b) return;
   const k = b.dataset.ativar, i = idk(k), [col, val] = alvo(k);
   const obs = (document.getElementById("obs-" + i)?.value || "").trim();
@@ -779,8 +816,8 @@ async function irPara(r) {
 const hojeISO = () => new Date().toISOString().slice(0, 10);
 
 async function carregarFollow() {
-  const base = "cnpj,chave_local,tipo,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao";
-  const consulta = (pros, loc) => db.from("oportunidades").select(`${base},prospects(${pros}),locais(${loc})`)
+  const base = "id,cnpj,chave_local,tipo,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao";
+  const consulta = (pros, loc, extra = ",anotacoes(texto,criado_em)") => db.from("oportunidades").select(`${base},prospects(${pros}),locais(${loc})${extra}`)
     .in("status", ["ATIVADO", "PROPOSTA_ENVIADA", "EM_NEGOCIACAO"])
     .order("retorno_em", { ascending: true, nullsFirst: false });
   const pros = "nome_fantasia,razao_social,telefone1,bairro,cidade,segmento,latitude,longitude";
@@ -788,6 +825,7 @@ async function carregarFollow() {
   let r = await consulta(pros + ",instagram", loc + ",instagram");
   if (r.error) r = await consulta(pros + ",instagram", loc);   // banco sem a coluna locais.instagram
   if (r.error) r = await consulta(pros, loc);                   // banco sem nenhuma coluna de Instagram
+  if (r.error) r = await consulta(pros, loc, "");               // banco sem a tabela de anotações
   return r;
 }
 
@@ -829,6 +867,10 @@ function cartaoFollow(o) {
     <div class="sub">${esc(p.segmento || "")} · ${esc(p.bairro || "")}, ${esc(p.cidade || "")}</div>
     <div class="sub">${linhaEnvio}${retorno ? " · " + retorno : ""}</div>
     ${o.observacao ? `<div class="sub">${esc(o.observacao)}</div>` : ""}
+    ${(() => { const n = (o.anotacoes || []).slice().sort((a, b) => b.criado_em.localeCompare(a.criado_em));
+      return n.length ? `<ul class="hist"><li><time>${dataHora(n[0].criado_em)}${n.length > 1 ? ` · ${n.length} anotações` : ""}</time>${esc(n[0].texto)}</li></ul>` : ""; })()}
+    ${o.anotacoes ? `<div class="duas" style="align-items:end"><textarea id="fuanot-${o.id}" rows="1" placeholder="Nova anotação…"></textarea>
+      <button type="button" class="fantasma" data-fu-anotar="${o.id}">Anotar</button></div>` : ""}
     <div class="acoes">
       ${whats ? `<button type="button" class="fantasma" data-fu-whats="${whats}">Abrir conversa</button>` : ""}
       ${p.instagram ? `<a class="fantasma" style="text-decoration:none" href="https://ig.me/m/${encodeURIComponent(p.instagram)}" target="_blank" rel="noopener">Direct @${esc(p.instagram)}</a>` : ""}
@@ -842,6 +884,15 @@ function cartaoFollow(o) {
 }
 
 async function acaoFollow(e) {
+  const an = e.target.closest("[data-fu-anotar]");
+  if (an) {
+    const campo = document.getElementById("fuanot-" + an.dataset.fuAnotar), texto = campo.value.trim();
+    if (!texto) { campo.focus(); return; }
+    an.disabled = true;
+    const { error } = await db.from("anotacoes").insert({ oportunidade_id: +an.dataset.fuAnotar, texto });
+    if (error) { an.disabled = false; an.textContent = "Erro: " + error.message; return; }
+    abrirFollow(); return;
+  }
   const w = e.target.closest("[data-fu-whats]");
   if (w) { window.open(`https://wa.me/55${w.dataset.fuWhats}`, "_blank", "noopener"); return; }
   const m = e.target.closest("[data-fu-mapa]");
