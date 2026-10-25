@@ -23,6 +23,7 @@
     --accent: #3fb59a; --accent-fg: #06221b; color-scheme: dark; }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--body); }
 button, input, select { font: inherit; color: inherit; }
@@ -77,7 +78,7 @@ select.chip { padding-right: 8px; }
 .faixa-modo { position: absolute; z-index: 500; left: 50%; transform: translateX(-50%); top: 10px; background: var(--fg); color: var(--bg); padding: 8px 12px; border-radius: 999px; font-size: 13px; display: flex; gap: 10px; align-items: center; max-width: calc(100% - 32px); }
 .faixa-modo button { background: none; border: 1px solid currentColor; color: inherit; border-radius: 999px; padding: 2px 9px; font-size: 12px; }
 #mapa-wrap { position: relative; min-height: 0; display: grid; }
-.folha { position: fixed; inset: 0; z-index: 1000; background: var(--bg); overflow-y: auto;
+.folha { position: fixed; inset: 0; z-index: 1200; background: var(--bg); overflow-y: auto;
   padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 .folha-topo { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .folha-topo h2 { font: 700 22px/1 var(--display); margin: 0; flex: 1; }
@@ -91,12 +92,24 @@ select.chip { padding-right: 8px; }
 .atrasado { color: #c0392b; font-weight: 600; }
 .busca { position: relative; flex: 1 1 100%; }
 .busca input { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: inherit; color: inherit; }
-#resultados { position: absolute; z-index: 1100; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 0; list-style: none;
+#resultados { position: absolute; z-index: 1300; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 0; list-style: none;
   background: var(--surface); border: 1px solid var(--line); border-radius: 10px; max-height: 60vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
 #resultados li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); cursor: pointer; }
 #resultados li:first-child { border-top: 0; }
 #resultados li:hover, #resultados li:focus { background: var(--bg); }
 #resultados li .ponto { margin-top: 6px; }
+.ficha { position: fixed; z-index: 1050; top: 0; right: 0; bottom: 0; width: min(420px, 100%); background: var(--surface);
+  border-left: 1px solid var(--line); box-shadow: -8px 0 24px rgba(0,0,0,.15); overflow-y: auto; overscroll-behavior: contain;
+  padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) 16px; }
+.ficha-topo { display: flex; justify-content: flex-end; position: sticky; top: calc(-12px - env(safe-area-inset-top)); background: var(--surface); padding: 4px 0 6px; z-index: 1; }
+.ficha .popup p { margin: 4px 0; }
+.ficha .popup h3 { font-size: 20px; margin: 8px 0 4px; }
+@media (max-width: 700px) {
+  .ficha { top: auto; left: 0; width: 100%; max-height: 72vh; border-left: 0; border-top: 1px solid var(--line);
+    border-radius: 14px 14px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,.18);
+    padding-left: max(16px, env(safe-area-inset-left)); }
+  .ficha-topo { top: -12px; }
+}
 .voce { width: 16px; height: 16px; border-radius: 50%; background: #1d6fe0; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(29,111,224,.35); }
 </style>
 </head>
@@ -143,6 +156,11 @@ select.chip { padding-right: 8px; }
     </div>
   </div>
 </section>
+
+<aside class="ficha" id="ficha" hidden aria-label="Ficha do ponto">
+  <div class="ficha-topo"><button class="fantasma" type="button" id="fechar-ficha">Fechar ✕</button></div>
+  <div id="ficha-corpo"></div>
+</aside>
 
 <section class="folha" id="folha-novo" hidden>
   <div class="folha-topo"><h2>Novo ponto</h2><button class="fantasma" type="button" id="fechar-novo">Fechar</button></div>
@@ -249,6 +267,8 @@ function abrirApp() {
   mapa.on("click", (e) => modoNovo ? escolherPonto(e.latlng.lat, e.latlng.lng) : buscar(e.latlng.lat, e.latlng.lng, false));
   montarNovoEFollow();
   montarBusca();
+  $("fechar-ficha").onclick = fecharFicha;
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("ficha").hidden) fecharFicha(); });
   contarFollow();
   document.addEventListener("click", ativarPeloBotao);
   montarControles();
@@ -326,8 +346,8 @@ function desenhar() {
     const s = STATUS[grupo(d)] || STATUS.OUTROS;
     const ehP = d.tipo === "PROSPECT";
     d._m = L.circleMarker([d.latitude, d.longitude], {
-      radius: ehP ? 6 : 7, color: "#fff", weight: 2, fillColor: s.hex, fillOpacity: 0.95,
-    }).bindPopup(() => ehP ? popupProspect(d, s) : popupLocal(d, s), { maxWidth: 320 }).addTo(camada);
+      radius: ehP ? 6 : 7, color: "#fff", weight: 2, fillColor: s.hex, fillOpacity: 0.95, bubblingMouseEvents: false,
+    }).on("click", () => abrirFicha(d)).addTo(camada);
     const sub = ehP
       ? `${esc(d.segmento)} · ${d.nota == null ? "cadastrado em campo" : "nota " + d.nota}${d.expansao_rede ? " · rede de cliente" : ""} · ${esc(d.bairro)}`
       : `${esc(d.endereco)} · ${esc(d.bairro)}${d.vendedor ? " · " + esc(d.vendedor) : ""}`;
@@ -336,8 +356,26 @@ function desenhar() {
   $("lista").innerHTML = itens.join("") || `<li class="vazio" style="display:block;cursor:default">Nada nesse raio com os filtros escolhidos. Aumente o raio ou toque em outro ponto do mapa.</li>`;
   $("lista").onclick = (e) => {
     const li = e.target.closest("[data-i]"); if (!li) return;
-    const d = visiveis[+li.dataset.i]; mapa.setView([d.latitude, d.longitude], Math.max(mapa.getZoom(), 16)); d._m.openPopup();
+    const d = visiveis[+li.dataset.i]; mapa.setView([d.latitude, d.longitude], Math.max(mapa.getZoom(), 16)); abrirFicha(d);
   };
+  // mantém a ficha aberta e atualizada depois de redesenhar
+  if (fichaChave) { const d = acharPorChave(fichaChave); if (d && d._m) abrirFicha(d); else fecharFicha(); }
+}
+
+// Ficha fixa na tela (não se move com o mapa)
+let fichaChave = null, marcaSel = null;
+function abrirFicha(d) {
+  if (modoNovo) sairModoNovo();
+  const s = STATUS[grupo(d)] || STATUS.OUTROS;
+  fichaChave = chaveDe(d);
+  $("ficha-corpo").innerHTML = d.tipo === "PROSPECT" ? popupProspect(d, s) : popupLocal(d, s);
+  $("ficha").hidden = false;
+  if (marcaSel) marcaSel.remove();
+  marcaSel = L.circleMarker([d.latitude, d.longitude], { radius: 14, color: s.hex, weight: 3, fill: false, interactive: false }).addTo(mapa);
+}
+function fecharFicha() {
+  fichaChave = null; $("ficha").hidden = true;
+  if (marcaSel) { marcaSel.remove(); marcaSel = null; }
 }
 
 function aproximado(d) {
@@ -361,7 +399,8 @@ function blocoFunil(d, rotuloAtivar, telefones, email) {
        <button type="button" class="primario" data-ativar="${ke}">${rotuloAtivar}</button>
        <p class="aviso" id="msg-${i}"></p>`;
   }
-  return `<p><b>${ROTULO_FUNIL[d.oportunidade_status] || d.oportunidade_status}</b>${d.oportunidade_status === "ATIVADO" ? " em " + dataBR(d.ativado_em) : ""}</p>${d.observacao ? `<p class="aviso">${esc(d.observacao)}</p>` : ""}
+  const rotuloStatus = d.tipo === "LOCAL" && d.oportunidade_status === "ATIVADO" ? "Reativação ativada" : (ROTULO_FUNIL[d.oportunidade_status] || d.oportunidade_status);
+  return `<p><b>${rotuloStatus}</b>${d.oportunidade_status === "ATIVADO" ? " em " + dataBR(d.ativado_em) : ""}</p>${d.observacao ? `<p class="aviso">${esc(d.observacao)}</p>` : ""}
        ${["ATIVADO", "PROPOSTA_ENVIADA"].includes(d.oportunidade_status) ? envio : ""}`;
 }
 
@@ -436,7 +475,7 @@ async function salvarInstagram(k) {
   if (error) { msg.textContent = "Não foi possível salvar: " + error.message; return; }
   if (!data) { msg.textContent = "Digite o @ do perfil, por exemplo @restaurante."; return; }
   const d = acharPorChave(k);
-  if (d) { mapa.closePopup(); d._m.openPopup(); }
+  if (d) abrirFicha(d);
 }
 
 async function ativarPeloBotao(e) {
@@ -460,8 +499,7 @@ async function ativarPeloBotao(e) {
   }
   const d = acharPorChave(k);
   if (d) { d.oportunidade_status = "ATIVADO"; d.ativado_em = new Date().toISOString(); d.observacao = obs; }
-  mapa.closePopup(); desenhar(); contarFollow();
-  if (d) { const v = visiveis.indexOf(d); if (v >= 0) d._m.openPopup(); }
+  desenhar(); contarFollow();
 }
 
 function abrirEnvio(k, canal) {
@@ -515,7 +553,7 @@ async function confirmarEnvio(b) {
 // ---------- Novo ponto ----------
 function montarNovoEFollow() {
   $("novo-cat").innerHTML = CATEGORIAS.map((c) => `<option value="${c}">${c[0] + c.slice(1).toLowerCase()}</option>`).join("");
-  $("btn-novo").onclick = () => { modoNovo = true; $("faixa-novo").hidden = false; mapa.closePopup(); };
+  $("btn-novo").onclick = () => { modoNovo = true; $("faixa-novo").hidden = false; fecharFicha(); };
   $("cancelar-novo").onclick = sairModoNovo;
   $("pelo-end").onclick = () => abrirFormSemPonto("");
   const ig = new URLSearchParams(location.search).get("ig");
@@ -615,7 +653,7 @@ async function salvarNovo(e) {
   $("folha-novo").hidden = true; sairModoNovo();
   await buscar(pontoNovo[0], pontoNovo[1], false);
   const d = estado.dados.find((x) => x.cnpj === data);
-  if (d && d._m) d._m.openPopup();
+  if (d && d._m) abrirFicha(d);
   contarFollow();
 }
 
@@ -729,7 +767,7 @@ async function irPara(r) {
   if (!estado.filtros.has(g)) { estado.filtros.add(g); document.querySelector(`[data-st="${g}"]`)?.setAttribute("aria-pressed", "true"); }
   await buscar(r.latitude, r.longitude, false);
   const d = estado.dados.find((x) => r.tipo === "LOCAL" ? x.chave_local === r.chave : x.cnpj === r.chave);
-  if (d && d._m) { mapa.setView([d.latitude, d.longitude], 17); d._m.openPopup(); }
+  if (d && d._m) { mapa.setView([d.latitude, d.longitude], 17); abrirFicha(d); }
 }
 
 // ---------- Follow-up ----------
@@ -801,7 +839,7 @@ async function acaoFollow(e) {
     await buscar(+m.dataset.lat, +m.dataset.lon, false);
     if (m.dataset.fuMapa.startsWith("L:")) estado.filtros.add("REATIVACAO");
     const d = acharPorChave(m.dataset.fuMapa);
-    if (d && d._m) d._m.openPopup();
+    if (d && d._m) abrirFicha(d);
     return;
   }
   const a = e.target.closest("[data-fu-adiar]");
