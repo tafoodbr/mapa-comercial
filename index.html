@@ -133,6 +133,20 @@ select.chip { padding-right: 8px; }
 #app.modo-lista { grid-template-rows: auto 1fr; }
 #app.modo-lista #mapa-wrap { display: none; }
 #app.modo-lista .painel { max-height: none; min-height: 0; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 6px 0 14px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.kpi b { display: block; font: 700 28px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.kpi span { color: var(--muted); font-size: 12px; }
+.kpi em { font-style: normal; color: var(--accent); font-size: 12px; font-weight: 600; }
+.barra-meta { height: 14px; background: var(--line); border-radius: 999px; overflow: hidden; }
+.barra-meta div { height: 100%; background: var(--accent); }
+.tabela { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.tabela th, .tabela td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.tabela th:first-child, .tabela td:first-child { text-align: left; white-space: normal; }
+.tabela th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.rolagem { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.titulo-sec { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+#painel-corpo { max-width: 980px; }
 .voce { width: 16px; height: 16px; border-radius: 50%; background: #1d6fe0; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(29,111,224,.35); }
 </style>
 </head>
@@ -152,9 +166,10 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-0130</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-0230</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
+    <button class="fantasma" id="btn-painel" type="button">Painel</button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
     <button class="fantasma" id="btn-sair" type="button">Sair</button>
     <div class="busca">
@@ -185,6 +200,7 @@ select.chip { padding-right: 8px; }
           <button type="button" data-modo="dividido" aria-pressed="true">Dividido</button>
           <button type="button" data-modo="lista" aria-pressed="false">Lista</button>
         </div>
+        <button type="button" class="fantasma" id="exportar-lista">Exportar</button>
       </div>
       <ul id="lista"></ul>
     </div>
@@ -216,6 +232,13 @@ select.chip { padding-right: 8px; }
     <button class="primario" type="submit" id="salvar-novo">Salvar e ativar prospecção</button>
     <p class="aviso" id="msg-novo"></p>
   </form>
+</section>
+
+<section class="folha" id="folha-painel" hidden>
+  <div class="folha-topo"><h2>Painel</h2>
+    <select class="chip" id="painel-dias" aria-label="Período"><option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="365">Último ano</option></select>
+    <button class="fantasma" type="button" id="fechar-painel">Fechar</button></div>
+  <div id="painel-corpo"><p class="sub">Carregando…</p></div>
 </section>
 
 <section class="folha" id="folha-follow" hidden>
@@ -324,6 +347,11 @@ function abrirApp() {
   montarNovoEFollow();
   montarBusca();
   montarModos();
+  $("btn-painel").onclick = abrirPainel;
+  $("fechar-painel").onclick = () => { $("folha-painel").hidden = true; };
+  $("painel-dias").onchange = abrirPainel;
+  $("painel-corpo").addEventListener("click", (e) => { const b = e.target.closest("[data-exp]"); if (b) exportarTabelaPainel(b.dataset.exp); });
+  $("exportar-lista").onclick = exportarLista;
   $("fechar-ficha").onclick = fecharFicha;
   $("sair-carteira").onclick = () => { estado.carteira = null; $("faixa-carteira").hidden = true; localizar(); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("ficha").hidden) fecharFicha(); });
@@ -983,8 +1011,104 @@ async function abrirCarteira(vendedor) {
   if (estado.dados.length) mapa.fitBounds(L.latLngBounds(estado.dados.map((d) => [d.latitude, d.longitude])), { padding: [30, 30] });
 }
 
+// ---------- Exportar (CSV que o Excel abre direto) ----------
+function baixarCSV(nome, linhas) {
+  if (!linhas.length) { alertaCurto("Nada para exportar com os filtros atuais."); return; }
+  const cols = Object.keys(linhas[0]);
+  const cel = (v) => {
+    if (v == null) return "";
+    if (typeof v === "number") return String(v).replace(".", ",");
+    const t = String(v);
+    return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  };
+  const csv = "\ufeff" + [cols.join(";"), ...linhas.map((l) => cols.map((c) => cel(l[c])).join(";"))].join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `${nome}_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function alertaCurto(t) { $("resumo").textContent = t; }
+
+function exportarLista() {
+  const linhas = visiveis.map((d) => d.tipo === "PROSPECT" ? {
+    tipo: "Prospect", situacao: ROTULO_FUNIL[d.oportunidade_status] || "Prospect", nome: d.nome, cnpj: d.cnpj,
+    categoria: d.segmento, nota: d.nota, endereco: d.endereco, bairro: d.bairro, cidade: d.cidade, uf: d.uf,
+    telefone: d.telefone1 || "", email: d.email || "", instagram: d.instagram || "", vendedor: "",
+    mensalidade: null, distancia_m: d.distancia_m,
+  } : {
+    tipo: "Cliente", situacao: (STATUS[grupo(d)] || STATUS.OUTROS).nome, nome: d.cliente, cnpj: "",
+    categoria: "", nota: null, endereco: d.endereco, bairro: d.bairro, cidade: d.cidade, uf: "",
+    telefone: d.contato || "", email: "", instagram: d.instagram || "", vendedor: d.vendedor || "",
+    mensalidade: Number(d.status_local === "ATIVO" ? d.mensalidade_ativa : d.mensalidade_ultimo_contrato) || null,
+    distancia_m: d.distancia_m,
+  });
+  baixarCSV(estado.carteira ? `carteira_${estado.carteira.replace(/\s+/g, "_")}` : "lista_mapa", linhas);
+}
+
+// ---------- Painel ----------
+const META_MENSAL = 200;   // meta de contratos por mês (definida pelo Fábio)
+let dadosPainel = null;
+const pct = (a, b) => b ? Math.round((a / b) * 100) + "%" : "—";
+const inteiro = (n) => Number(n || 0).toLocaleString("pt-BR");
+
+async function abrirPainel() {
+  $("folha-painel").hidden = false;
+  $("painel-corpo").innerHTML = '<p class="sub">Carregando…</p>';
+  const { data, error } = await db.rpc("painel", { p_dias: +$("painel-dias").value });
+  if (error) { $("painel-corpo").innerHTML = `<p class="erro">Não foi possível carregar: ${esc(error.message)}. Falta rodar o SQL do painel?</p>`; return; }
+  dadosPainel = data;
+  const f = data.funil || {}, mes = data.ganhos_mes || 0;
+  const hoje = new Date(), diasMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).getDate();
+  const ritmo = Math.round(mes / hoje.getDate() * diasMes);
+  const tab = (id, titulo, cab, linhas) => `<div class="titulo-sec"><h3>${titulo}</h3><button type="button" class="fantasma" data-exp="${id}">Exportar</button></div>
+    <div class="rolagem"><table class="tabela"><thead><tr>${cab.map((c) => `<th>${c}</th>`).join("")}</tr></thead>
+    <tbody>${linhas.length ? linhas.join("") : `<tr><td colspan="${cab.length}" class="sub">Sem dados no período.</td></tr>`}</tbody></table></div>`;
+  $("painel-corpo").innerHTML = `
+    <h3>Meta do mês</h3>
+    <div class="kpi"><b>${inteiro(mes)} <span>de ${META_MENSAL} contratos</span></b>
+      <div class="barra-meta" role="progressbar" aria-valuenow="${mes}" aria-valuemax="${META_MENSAL}"><div style="width:${Math.min(100, mes / META_MENSAL * 100)}%"></div></div>
+      <span>No ritmo atual, o mês fecha com cerca de ${inteiro(ritmo)}. Conta as oportunidades marcadas como Ganho neste mês.</span></div>
+    <h3>Funil · últimos ${data.dias} dias</h3>
+    <div class="kpis">
+      <div class="kpi"><span>Ativados</span><b>${inteiro(f.ativados)}</b></div>
+      <div class="kpi"><span>Propostas enviadas</span><b>${inteiro(f.propostas)}</b><em>${pct(f.propostas, f.ativados)} dos ativados</em></div>
+      <div class="kpi"><span>Em negociação</span><b>${inteiro(f.negociacao)}</b></div>
+      <div class="kpi"><span>Ganhos</span><b>${inteiro(f.ganhos)}</b><em>${pct(f.ganhos, f.propostas)} das propostas</em></div>
+      <div class="kpi"><span>Perdidos</span><b>${inteiro(f.perdidos)}</b></div>
+    </div>
+    ${tab("origem", "Por origem do lead", ["Origem", "Ativados", "Propostas", "Ganhos", "Perdidos", "Conversão"],
+      data.origem.map((o) => `<tr><td>${esc(o.origem)}</td><td>${inteiro(o.ativados)}</td><td>${inteiro(o.propostas)}</td><td>${inteiro(o.ganhos)}</td><td>${inteiro(o.perdidos)}</td><td><b>${pct(o.ganhos, o.ativados)}</b></td></tr>`))}
+    ${tab("semana", "Atividade da semana por vendedor", ["Vendedor", "Ativações", "Propostas", "Retornos atrasados", "Ganhos"],
+      data.semana.map((v) => `<tr><td>${esc(v.vendedor)}</td><td>${inteiro(v.ativacoes)}</td><td>${inteiro(v.propostas)}</td><td>${v.retornos_atrasados ? `<b class="atrasado">${v.retornos_atrasados}</b>` : 0}</td><td>${inteiro(v.ganhos)}</td></tr>`))}
+    ${tab("carteira", "Carteira por vendedor", ["Vendedor", "Ativos", "Mensalidade ativa", "Cancelados", "Em reativação"],
+      data.carteira.map((v) => `<tr><td>${esc(v.vendedor)}</td><td>${inteiro(v.ativos)}</td><td>${brl(v.mensalidade_ativa)}</td><td>${inteiro(v.cancelados)}</td><td>${inteiro(v.em_reativacao)}</td></tr>`))}
+    ${tab("regiao", "Carteira por cidade (15 maiores)", ["Cidade", "Ativos", "Mensalidade ativa", "Cancelados"],
+      data.regiao.map((r) => `<tr><td>${esc(r.cidade)}</td><td>${inteiro(r.ativos)}</td><td>${brl(r.mensalidade)}</td><td>${inteiro(r.cancelados)}</td></tr>`))}
+    <p class="sub" style="margin-top:12px">Para o funil e as origens, conta as oportunidades ativadas no período. Carteira e cidades mostram a situação atual.</p>`;
+}
+
+function exportarTabelaPainel(id) {
+  if (!dadosPainel) return;
+  baixarCSV(`painel_${id}`, dadosPainel[id] || []);
+}
+
 // ---------- Follow-up ----------
 const hojeISO = () => new Date().toISOString().slice(0, 10);
+
+let ultimoFollow = [];
+function exportarFollow() {
+  baixarCSV("follow_up", ultimoFollow.map((o) => {
+    const p = o.prospects || {}, l = o.locais || {};
+    return {
+      nome: p.nome_fantasia || p.razao_social || l.cliente || "", tipo: o.tipo === "REATIVACAO" ? "Reativação" : "Prospecção",
+      situacao: ROTULO_FUNIL[o.status] || o.status, origem: o.origem || "", ativado_em: dataBR(o.ativado_em),
+      canal: NOME_CANAL[o.canal] || "", destino: o.destino || "", proposta_enviada_em: dataBR(o.proposta_enviada_em),
+      retorno_em: dataBR(o.retorno_em), telefone: p.telefone1 || l.contato || "", bairro: p.bairro || l.bairro || "",
+      cidade: p.cidade || l.cidade || "", observacao: o.observacao || "",
+      ultima_anotacao: ((o.anotacoes || []).slice().sort((a, b) => b.criado_em.localeCompare(a.criado_em))[0] || {}).texto || "",
+    };
+  }));
+}
 
 async function carregarFollow() {
   const base = "id,cnpj,chave_local,tipo,origem,status,ativado_em,canal,destino,proposta_enviada_em,retorno_em,observacao";
@@ -1024,7 +1148,8 @@ async function abrirFollow() {
     ["Próximos retornos", data.filter((o) => o.retorno_em && o.retorno_em > hoje)],
     ["Ativados, proposta ainda não enviada", data.filter((o) => !o.retorno_em)],
   ];
-  $("lista-follow").innerHTML = cabecalho + grupos.map(([titulo, itens]) => `<h3>${titulo} · ${itens.length}</h3>` +
+  ultimoFollow = data;
+  $("lista-follow").innerHTML = cabecalho + `<button type="button" class="fantasma" id="exportar-follow" style="margin-left:8px">Exportar</button>` + grupos.map(([titulo, itens]) => `<h3>${titulo} · ${itens.length}</h3>` +
     (itens.length ? itens.map(cartaoFollow).join("") : '<p class="sub">Nada aqui.</p>')).join("");
 }
 
@@ -1062,6 +1187,7 @@ function cartaoFollow(o) {
 }
 
 async function acaoFollow(e) {
+  if (e.target.closest("#exportar-follow")) return exportarFollow();
   const an = e.target.closest("[data-fu-anotar]");
   if (an) {
     const campo = document.getElementById("fuanot-" + an.dataset.fuAnotar), texto = campo.value.trim();
