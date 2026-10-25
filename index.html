@@ -152,7 +152,7 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-0100</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-0130</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
@@ -163,6 +163,7 @@ select.chip { padding-right: 8px; }
     </div>
   </header>
   <div id="mapa-wrap"><div id="mapa"></div>
+    <div class="faixa-modo" id="faixa-carteira" hidden style="top:auto;bottom:calc(10px + env(safe-area-inset-bottom))">Carteira de <b id="nome-carteira"></b> <button type="button" id="sair-carteira">Sair da carteira</button></div>
     <div class="faixa-modo" id="faixa-novo" hidden>Toque no mapa onde fica o estabelecimento <button type="button" id="usar-gps">Usar minha posição</button> <button type="button" id="pelo-end">Pelo endereço</button> <button type="button" id="cancelar-novo">Cancelar</button></div>
   </div>
   <div class="painel">
@@ -275,7 +276,7 @@ const $ = (id) => document.getElementById(id);
 const brl = (v) => v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const dataHora = (d) => d ? new Date(d).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
 const dataBR = (d) => d ? d.slice(0, 10).split("-").reverse().join("/") : "—";
-const km = (m) => m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`;
+const km = (m) => m == null ? "—" : m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1).replace(".", ",")} km`;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const busca = (q) => encodeURIComponent(q);
 function telWhats(t) {
@@ -319,11 +320,12 @@ function abrirApp() {
     maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(mapa);
   camada = L.layerGroup().addTo(mapa);
-  mapa.on("click", (e) => modoNovo ? escolherPonto(e.latlng.lat, e.latlng.lng) : buscar(e.latlng.lat, e.latlng.lng, false));
+  mapa.on("click", (e) => modoNovo ? escolherPonto(e.latlng.lat, e.latlng.lng) : (estado.carteira ? null : buscar(e.latlng.lat, e.latlng.lng, false)));
   montarNovoEFollow();
   montarBusca();
   montarModos();
   $("fechar-ficha").onclick = fecharFicha;
+  $("sair-carteira").onclick = () => { estado.carteira = null; $("faixa-carteira").hidden = true; localizar(); };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("ficha").hidden) fecharFicha(); });
   contarFollow();
   document.addEventListener("click", ativarPeloBotao);
@@ -366,6 +368,7 @@ function localizar() {
 }
 
 async function buscar(lat, lon, ehVoce) {
+  if (estado.carteira) { estado.carteira = null; $("faixa-carteira").hidden = true; }
   estado.centro = [lat, lon];
   if (ehVoce) {
     if (marcaVoce) marcaVoce.remove();
@@ -398,6 +401,10 @@ function desenhar() {
   }
   const mens = estado.dados.filter((d) => d.status_local === "ATIVO").reduce((s, d) => s + Number(d.mensalidade_ativa || 0), 0);
   const nPros = estado.dados.filter((d) => d.tipo === "PROSPECT").length;
+  if (estado.carteira) {
+    const r = (vendedoresCache || []).find((v) => v.vendedor === estado.carteira) || {};
+    $("resumo").textContent = `${estado.carteira}: ${r.ativos ?? "?"} ativos · ${brl(r.mensalidade_ativa)}/mês · ${r.cancelados ?? "?"} cancelados · ${r.em_reativacao ?? 0} em reativação · ${visiveis.length} no mapa`;
+  } else
   $("resumo").textContent = estado.avisoProspects ||
     `${visiveis.length} pontos em ${km(estado.raio)} · ${brl(mens)}/mês ativos · ${nPros} prospects`;
   const itens = [];
@@ -410,7 +417,7 @@ function desenhar() {
     const sub = ehP
       ? `${d.anos_de_abertura === 0 ? "<b>NOVO</b> · " : ""}${esc(d.segmento)} · ${d.nota == null ? "cadastrado em campo" : "nota " + d.nota}${d.expansao_rede ? " · rede de cliente" : ""} · ${esc(d.bairro)}`
       : `${esc(d.endereco)} · ${esc(d.bairro)}${d.vendedor ? " · " + esc(d.vendedor) : ""}`;
-    itens.push(`<li data-i="${i}"><span class="ponto" style="background:${s.cor}"></span><div><div class="nome">${esc(d.cliente || d.endereco)}</div><div class="sub">${sub}</div></div><div class="dist">${km(d.distancia_m)}</div></li>`);
+    itens.push(`<li data-i="${i}"><span class="ponto" style="background:${s.cor}"></span><div><div class="nome">${esc(d.cliente || d.endereco)}</div><div class="sub">${sub}</div></div><div class="dist">${d.distancia_m == null ? esc(d.cidade || "") : km(d.distancia_m)}</div></li>`);
   });
   $("lista").innerHTML = itens.join("") || `<li class="vazio" style="display:block;cursor:default">Nada nesse raio com os filtros escolhidos. Aumente o raio ou toque em outro ponto do mapa.</li>`;
   $("lista").onclick = (e) => {
@@ -923,23 +930,33 @@ function montarBusca() {
   document.addEventListener("click", (e) => { if (!e.target.closest(".busca")) $("resultados").hidden = true; });
 }
 
+let vendedoresCache = null;
+const semAcento = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 async function pesquisar(t) {
+  if (!vendedoresCache) {
+    const v = await db.rpc("vendedores_resumo");
+    vendedoresCache = v.error ? [] : v.data;
+  }
   const { data, error } = await db.rpc("buscar_pontos", { p_texto: t });
   if (t !== $("busca").value.trim()) return;
-  resultadosBusca = data || [];
+  const vend = vendedoresCache.filter((v) => semAcento(v.vendedor).includes(semAcento(t))).slice(0, 5)
+    .map((v) => ({ ...v, tipo: "VENDEDOR" }));
+  resultadosBusca = [...vend, ...(data || [])];
   const cor = (r) => r.tipo === "LOCAL" ? (STATUS[r.situacao] || STATUS.OUTROS).cor
     : (r.situacao === "PROSPECT" ? STATUS.PROSPECT.cor : STATUS.OPORTUNIDADE.cor);
   const rotulo = (r) => r.tipo === "LOCAL" ? (STATUS[r.situacao] || STATUS.OUTROS).nome
     : (r.situacao === "PROSPECT" ? "Prospect" : ROTULO_FUNIL[r.situacao] || r.situacao);
   $("resultados").innerHTML = error ? `<li class="sub" style="display:block">Não foi possível buscar: ${esc(error.message)}</li>`
-    : resultadosBusca.length ? resultadosBusca.map((r, i) =>
-      `<li data-r="${i}" tabindex="0"><span class="ponto" style="background:${cor(r)}"></span><div><div class="nome">${esc(r.nome)}</div><div class="sub">${esc(rotulo(r))} · ${esc(r.endereco)} · ${esc(r.bairro)}, ${esc(r.cidade)}</div></div></li>`).join("")
+    : resultadosBusca.length ? resultadosBusca.map((r, i) => r.tipo === "VENDEDOR"
+      ? `<li data-r="${i}" tabindex="0"><span class="ponto" style="background:var(--fg)"></span><div><div class="nome">Vendedor · ${esc(r.vendedor)}</div><div class="sub">${r.ativos} ativos (${brl(r.mensalidade_ativa)}/mês) · ${r.cancelados} cancelados · ${r.em_reativacao} em reativação</div></div></li>`
+      : `<li data-r="${i}" tabindex="0"><span class="ponto" style="background:${cor(r)}"></span><div><div class="nome">${esc(r.nome)}</div><div class="sub">${esc(rotulo(r))} · ${esc(r.endereco)} · ${esc(r.bairro)}, ${esc(r.cidade)}</div></div></li>`).join("")
     : `<li class="sub" style="display:block">Nada encontrado com "${esc(t)}".</li>`;
   $("resultados").hidden = false;
 }
 
 async function irPara(r) {
   $("resultados").hidden = true; $("busca").blur();
+  if (r.tipo === "VENDEDOR") return abrirCarteira(r.vendedor);
   if (r.tipo === "PROSPECT") {
     // garante que o ponto apareça mesmo com nota baixa ou filtro de categoria ativo
     if (estado.notaMin > 0) { estado.notaMin = 0; $("nota-min").value = "0"; }
@@ -950,6 +967,20 @@ async function irPara(r) {
   await buscar(r.latitude, r.longitude, false);
   const d = estado.dados.find((x) => r.tipo === "LOCAL" ? x.chave_local === r.chave : x.cnpj === r.chave);
   if (d && d._m) { mapa.setView([d.latitude, d.longitude], 17); abrirFicha(d); }
+}
+
+// ---------- Carteira por vendedor (visão de gestão) ----------
+async function abrirCarteira(vendedor) {
+  fecharFicha();
+  $("resumo").textContent = `Carregando a carteira de ${vendedor}…`;
+  const { data, error } = await db.rpc("carteira_vendedor", { p_vendedor: vendedor });
+  if (error) { $("resumo").textContent = "Não foi possível carregar a carteira: " + error.message; return; }
+  estado.carteira = vendedor;
+  if (circulo) { circulo.remove(); circulo = null; }
+  estado.dados = (data || []).map((d) => ({ ...d, tipo: "LOCAL" }));
+  $("nome-carteira").textContent = vendedor; $("faixa-carteira").hidden = false;
+  desenhar();
+  if (estado.dados.length) mapa.fitBounds(L.latLngBounds(estado.dados.map((d) => [d.latitude, d.longitude])), { padding: [30, 30] });
 }
 
 // ---------- Follow-up ----------
