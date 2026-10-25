@@ -89,6 +89,14 @@ select.chip { padding-right: 8px; }
 .fu .acoes { display: flex; flex-wrap: wrap; gap: 6px; }
 .fu .acoes button, .fu .acoes select { font-size: 13px; }
 .atrasado { color: #c0392b; font-weight: 600; }
+.busca { position: relative; flex: 1 1 100%; }
+.busca input { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: inherit; color: inherit; }
+#resultados { position: absolute; z-index: 1100; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 0; list-style: none;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; max-height: 60vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+#resultados li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); cursor: pointer; }
+#resultados li:first-child { border-top: 0; }
+#resultados li:hover, #resultados li:focus { background: var(--bg); }
+#resultados li .ponto { margin-top: 6px; }
 .voce { width: 16px; height: 16px; border-radius: 50%; background: #1d6fe0; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(29,111,224,.35); }
 </style>
 </head>
@@ -111,6 +119,10 @@ select.chip { padding-right: 8px; }
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
     <button class="fantasma" id="btn-sair" type="button">Sair</button>
+    <div class="busca">
+      <input id="busca" type="search" placeholder="Buscar nome, CNPJ ou @instagram" autocomplete="off" aria-label="Buscar cliente ou prospect">
+      <ul id="resultados" hidden></ul>
+    </div>
   </header>
   <div id="mapa-wrap"><div id="mapa"></div>
     <div class="faixa-modo" id="faixa-novo" hidden>Toque no mapa onde fica o estabelecimento <button type="button" id="usar-gps">Usar minha posição</button> <button type="button" id="pelo-end">Pelo endereço</button> <button type="button" id="cancelar-novo">Cancelar</button></div>
@@ -225,6 +237,7 @@ function abrirApp() {
   camada = L.layerGroup().addTo(mapa);
   mapa.on("click", (e) => modoNovo ? escolherPonto(e.latlng.lat, e.latlng.lng) : buscar(e.latlng.lat, e.latlng.lng, false));
   montarNovoEFollow();
+  montarBusca();
   contarFollow();
   document.addEventListener("click", ativarPeloBotao);
   montarControles();
@@ -622,6 +635,50 @@ async function buscarCnpjBrasilApi(cnpj) {
   } catch {
     $("cnpj-info").textContent = "CNPJ não encontrado na nossa base nem na consulta da Receita. Preencha os dados abaixo.";
   }
+}
+
+// ---------- Busca por nome, CNPJ ou Instagram ----------
+let temporizadorBusca = null, resultadosBusca = [];
+function montarBusca() {
+  $("busca").addEventListener("input", () => {
+    clearTimeout(temporizadorBusca);
+    const t = $("busca").value.trim();
+    if (t.length < 3) { $("resultados").hidden = true; return; }
+    temporizadorBusca = setTimeout(() => pesquisar(t), 350);
+  });
+  $("resultados").addEventListener("click", (e) => {
+    const li = e.target.closest("[data-r]"); if (li) irPara(resultadosBusca[+li.dataset.r]);
+  });
+  document.addEventListener("click", (e) => { if (!e.target.closest(".busca")) $("resultados").hidden = true; });
+}
+
+async function pesquisar(t) {
+  const { data, error } = await db.rpc("buscar_pontos", { p_texto: t });
+  if (t !== $("busca").value.trim()) return;
+  resultadosBusca = data || [];
+  const cor = (r) => r.tipo === "LOCAL" ? (STATUS[r.situacao] || STATUS.OUTROS).cor
+    : (r.situacao === "PROSPECT" ? STATUS.PROSPECT.cor : STATUS.OPORTUNIDADE.cor);
+  const rotulo = (r) => r.tipo === "LOCAL" ? (STATUS[r.situacao] || STATUS.OUTROS).nome
+    : (r.situacao === "PROSPECT" ? "Prospect" : ROTULO_FUNIL[r.situacao] || r.situacao);
+  $("resultados").innerHTML = error ? `<li class="sub" style="display:block">Não foi possível buscar: ${esc(error.message)}</li>`
+    : resultadosBusca.length ? resultadosBusca.map((r, i) =>
+      `<li data-r="${i}" tabindex="0"><span class="ponto" style="background:${cor(r)}"></span><div><div class="nome">${esc(r.nome)}</div><div class="sub">${esc(rotulo(r))} · ${esc(r.endereco)} · ${esc(r.bairro)}, ${esc(r.cidade)}</div></div></li>`).join("")
+    : `<li class="sub" style="display:block">Nada encontrado com "${esc(t)}".</li>`;
+  $("resultados").hidden = false;
+}
+
+async function irPara(r) {
+  $("resultados").hidden = true; $("busca").blur();
+  if (r.tipo === "PROSPECT") {
+    // garante que o ponto apareça mesmo com nota baixa ou filtro de categoria ativo
+    if (estado.notaMin > 0) { estado.notaMin = 0; $("nota-min").value = "0"; }
+    if (estado.categoria) { estado.categoria = ""; $("categoria").value = ""; }
+  }
+  const g = r.tipo === "LOCAL" ? r.situacao : (r.situacao === "PROSPECT" ? "PROSPECT" : "OPORTUNIDADE");
+  if (!estado.filtros.has(g)) { estado.filtros.add(g); document.querySelector(`[data-st="${g}"]`)?.setAttribute("aria-pressed", "true"); }
+  await buscar(r.latitude, r.longitude, false);
+  const d = estado.dados.find((x) => r.tipo === "LOCAL" ? x.chave_local === r.chave : x.cnpj === r.chave);
+  if (d && d._m) { mapa.setView([d.latitude, d.longitude], 17); d._m.openPopup(); }
 }
 
 // ---------- Follow-up ----------
