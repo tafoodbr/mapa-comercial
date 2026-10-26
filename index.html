@@ -166,9 +166,10 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v25.10-0230</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v26.10-1600</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
+    <button class="fantasma" id="btn-blindagem" type="button">Blindagem <span id="n-blind"></span></button>
     <button class="fantasma" id="btn-painel" type="button">Painel</button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
     <button class="fantasma" id="btn-sair" type="button">Sair</button>
@@ -234,6 +235,13 @@ select.chip { padding-right: 8px; }
   </form>
 </section>
 
+<section class="folha" id="folha-blindagem" hidden>
+  <div class="folha-topo"><h2>Blindagem</h2>
+    <button class="fantasma" type="button" id="exportar-blindagem">Exportar</button>
+    <button class="fantasma" type="button" id="fechar-blindagem">Fechar</button></div>
+  <div class="bloco" id="lista-blindagem"><p class="sub">Carregando…</p></div>
+</section>
+
 <section class="folha" id="folha-painel" hidden>
   <div class="folha-topo"><h2>Painel</h2>
     <select class="chip" id="painel-dias" aria-label="Período"><option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="365">Último ano</option></select>
@@ -263,11 +271,15 @@ const STATUS = {
   PROSPECT: { nome: "Prospects 80+", cor: "#2f7fd8", hex: "#2f7fd8" },
   OPORTUNIDADE: { nome: "Prospecção ativa", cor: "#14336e", hex: "#14336e" },
   REATIVACAO: { nome: "Reativação ativa", cor: "#e3b008", hex: "#e3b008" },
+  BLINDAGEM: { nome: "Blindagem disponível", cor: "#c2185b", hex: "#c2185b" },
 };
 const ROTULO_FUNIL = { ATIVADO: "Prospecção ativada", PROPOSTA_ENVIADA: "Proposta enviada", EM_NEGOCIACAO: "Em negociação", GANHO: "Ganho", PERDIDO: "Perdido" };
 const RAIOS = [500, 1000, 2000, 5000];
 // Texto padrão do primeiro contato (definido pelo Fábio em 23/10/2026).
 const MENSAGEM_PADRAO = "Olá, talvez você saiba, mas, talvez não saiba. O Sistema de Limpeza RestoClean X-10 é o maior aliado dos restaurantes no combate à gordura. Arrisco afirmar que economia de mão de obra, melhor eficiência operacional e economia de produtos de limpeza são alguns dos principais benefícios. Provavelmente algum restaurante de destaque próximo a você pode estar aplicando a nossa limpeza por imersão.\n\nVeja na prática: https://www.instagram.com/reel/DbqS_tzRrYa/";
+// Texto provisório para blindagem: ajustar com o Fábio.
+const MENSAGEM_BLINDAGEM = "Olá! Aqui é o Fábio, da RestoClean. O contrato do Sistema de Limpeza RestoClean de vocês completou o período inicial e queremos manter a parceria com condições especiais por mais 36 meses (Parceria Estratégica 2026). Posso te apresentar a proposta de renovação?";
+const COMISSAO_BLINDAGEM = 300;   // R$ por contrato blindado (informado pelo Fábio)
 const ASSUNTO_EMAIL = "RestoClean X-10: limpeza por imersão no combate à gordura";
 const DIAS_RETORNO = 3;
 const RAIO_PROVA = 2000;   // raio da prova social (metros)
@@ -275,6 +287,7 @@ const provaSocial = {};    // chave do ponto -> { total, nomes }
 
 // Monta a mensagem final: texto padrão + (opcional) prova social antes do link do vídeo.
 function mensagemPara(k) {
+  if (k.startsWith("B:")) return MENSAGEM_BLINDAGEM;
   const i = idk(k), p = provaSocial[k];
   if (!p || !p.total || !document.getElementById("provamsg-" + i)?.checked) return MENSAGEM_PADRAO;
   let frase = `Hoje, ${p.total} ${p.total === 1 ? "estabelecimento" : "estabelecimentos"} num raio de ${RAIO_PROVA / 1000} km de vocês já ${p.total === 1 ? "usa" : "usam"} a RestoClean.`;
@@ -292,8 +305,9 @@ const PRECISAO_APROX = { cep: "localização pelo CEP", localidade: "localizaç�
 
 const CATEGORIAS = ["RESTAURANTE", "HAMBURGUERIA", "PIZZARIA", "LANCHONETE", "PADARIA", "SUPERMERCADO", "DELIVERY", "COMIDA PARA CASA", "CHURRASCARIA", "JAPONES", "REFEICAO COLETIVA", "HOTEL", "BUFE", "BAR", "CANTINA", "INDUSTRIA ALIMENTICIA", "OUTRO"];
 let modoNovo = false, pontoNovo = null, marcaNovo = null;
-let estado = { notaMin: 80, categoria: "", raio: 1000, filtros: new Set(["ATIVO", "CANCELADO", "CANCELADO_COM_CNPJ_ATIVO", "PROSPECT", "OPORTUNIDADE", "REATIVACAO"]), centro: null, dados: [] };
+let estado = { notaMin: 80, categoria: "", raio: 1000, filtros: new Set(["ATIVO", "CANCELADO", "CANCELADO_COM_CNPJ_ATIVO", "PROSPECT", "OPORTUNIDADE", "REATIVACAO", "BLINDAGEM"]), centro: null, dados: [] };
 let mapa, camada, marcaVoce, circulo, visiveis = [];
+let blindagem = new Map(), blindagemErro = null;
 
 const $ = (id) => document.getElementById(id);
 const brl = (v) => v == null ? "—" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -308,15 +322,29 @@ function telWhats(t) {
   return d.length === 10 || d.length === 11 ? d : "";
 }
 const pareceFixo = (d) => d.length === 10 && !/^\d{2}9/.test(d);
-const grupo = (d) => d.tipo === "PROSPECT" ? (d.oportunidade_status ? "OPORTUNIDADE" : "PROSPECT")
+const emBlindagem = (d) => {
+  const b = d.tipo === "LOCAL" && d.status_local === "ATIVO" ? blindagem.get(d.chave_local) : null;
+  return b && (["VENCIDO", "VENCE_90"].includes(b.situacao) || ABERTOS.includes(b.oportunidade_status)) ? b : null;
+};
+const grupo = (d) => emBlindagem(d) ? "BLINDAGEM" : d.tipo === "PROSPECT" ? (d.oportunidade_status ? "OPORTUNIDADE" : "PROSPECT")
   : (d.oportunidade_status && !["GANHO", "PERDIDO"].includes(d.oportunidade_status) ? "REATIVACAO" : d.status_local);
 // Chave única de cada ponto no funil: CNPJ (prospect) ou "L:" + chave do endereço (cliente cancelado).
-const chaveDe = (d) => d.tipo === "LOCAL" ? "L:" + d.chave_local : d.cnpj;
+const chaveDe = (d) => d.tipo === "LOCAL" ? "L:" + d.chave_local : d.tipo === "BLIND" ? "B:" + d.chave_local : d.cnpj;
 const idk = (k) => String(k).replace(/[^A-Za-z0-9_-]/g, "_");
-const alvo = (k) => k.startsWith("L:") ? ["chave_local", k.slice(2)] : ["cnpj", k];
+const alvo = (k) => (k.startsWith("L:") || k.startsWith("B:")) ? ["chave_local", k.slice(2)] : ["cnpj", k];
+const ABERTOS = ["ATIVADO", "PROPOSTA_ENVIADA", "EM_NEGOCIACAO"];
+const tipoDaChave = (k) => k.startsWith("B:") ? "BLINDAGEM" : k.startsWith("L:") ? "REATIVACAO" : null;
+// Um endereço pode ter várias oportunidades ao longo do tempo (ex.: reativação ganha e depois blindagem):
+// filtra pela chave, pelo tipo e, para alterações, só a que está em aberto.
+function filtrar(q, k, soAbertas = true) {
+  const [c, v] = alvo(k), t = tipoDaChave(k);
+  q = q.eq(c, v);
+  if (t) { q = q.eq("tipo", t); if (soAbertas) q = q.in("status", ABERTOS); }
+  return q;
+}
 const acharPorChave = (k) => estado.dados.find((x) => chaveDe(x) === k);
 const PODE_REATIVAR = ["CANCELADO", "CANCELADO_COM_CNPJ_ATIVO"];
-const ORIGENS = ["Mapa (prospect)", "Visita de campo", "iFood Super Restaurante", "Instagram", "Google Maps", "Indicação", "Reativação", "Outro"];
+const ORIGENS = ["Mapa (prospect)", "Visita de campo", "iFood Super Restaurante", "Instagram", "Google Maps", "Indicação", "Reativação", "Blindagem", "Outro"];
 const opcoesOrigem = (padrao) => ORIGENS.map((o) => `<option${o === padrao ? " selected" : ""}>${o}</option>`).join("");
 const NOME_CANAL = { WHATSAPP: "WhatsApp", EMAIL: "e-mail", INSTAGRAM: "Instagram" };
 const limparInstagram = (t) => String(t || "").trim().toLowerCase().replace(/^.*instagram\.com\//, "").replace(/^@/, "")
@@ -348,6 +376,11 @@ function abrirApp() {
   montarBusca();
   montarModos();
   $("btn-painel").onclick = abrirPainel;
+  $("btn-blindagem").onclick = abrirBlindagem;
+  $("fechar-blindagem").onclick = () => { $("folha-blindagem").hidden = true; };
+  $("exportar-blindagem").onclick = exportarBlindagem;
+  $("lista-blindagem").addEventListener("click", ativarPeloBotao);
+  carregarBlindagem();
   $("fechar-painel").onclick = () => { $("folha-painel").hidden = true; };
   $("painel-dias").onchange = abrirPainel;
   $("painel-corpo").addEventListener("click", (e) => { const b = e.target.closest("[data-exp]"); if (b) exportarTabelaPainel(b.dataset.exp); });
@@ -482,6 +515,8 @@ function abrirFicha(d) {
   $("ficha-corpo").innerHTML = d.tipo === "PROSPECT" ? popupProspect(d, s) : popupLocal(d, s);
   $("ficha").hidden = false;
   if (d.oportunidade_status) carregarAnotacoes(fichaChave);
+  const bl = d.tipo === "LOCAL" ? blindagem.get(d.chave_local) : null;
+  if (bl && ABERTOS.includes(bl.oportunidade_status)) carregarAnotacoes("B:" + d.chave_local);
   carregarProva(d);
   if (marcaSel) marcaSel.remove();
   marcaSel = L.circleMarker([d.latitude, d.longitude], { radius: 14, color: s.hex, weight: 3, fill: false, interactive: false }).addTo(mapa);
@@ -494,8 +529,8 @@ function listaAnotacoes(notas) {
 }
 async function carregarAnotacoes(k) {
   const lista = document.getElementById("anot-" + idk(k)); if (!lista) return;
-  const [col, val] = alvo(k);
-  const { data, error } = await db.from("oportunidades").select("id,anotacoes(texto,criado_em)").eq(col, val).maybeSingle();
+  const { data, error } = await filtrar(db.from("oportunidades").select("id,anotacoes(texto,criado_em)"), k, false)
+    .order("ativado_em", { ascending: false }).limit(1).maybeSingle();
   if (error || !data) { lista.innerHTML = '<li class="sub">Anotações indisponíveis (falta rodar o SQL de anotações).</li>'; return; }
   oportId[k] = data.id;
   lista.innerHTML = listaAnotacoes(data.anotacoes || []);
@@ -539,12 +574,13 @@ function blocoFunil(d, rotuloAtivar, telefones, email) {
             <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-insta="${ke}">Copiar mensagem e abrir Direct</button>`}
        <p class="aviso" id="env-${i}"></p>`;
   if (!d.oportunidade_status) {
-    return `<label>Origem do lead <select id="orig-${i}">${opcoesOrigem(d.tipo === "LOCAL" ? "Reativação" : "Mapa (prospect)")}</select></label>
+    return `<label>Origem do lead <select id="orig-${i}">${opcoesOrigem(d.tipo === "LOCAL" ? "Reativação" : d.tipo === "BLIND" ? "Blindagem" : "Mapa (prospect)")}</select></label>
        <textarea id="obs-${i}" placeholder="Observação (opcional): com quem falou, interesse, melhor horário…"></textarea>
        <button type="button" class="primario" data-ativar="${ke}">${rotuloAtivar}</button>
        <p class="aviso" id="msg-${i}"></p>`;
   }
-  const rotuloStatus = d.tipo === "LOCAL" && d.oportunidade_status === "ATIVADO" ? "Reativação ativada" : (ROTULO_FUNIL[d.oportunidade_status] || d.oportunidade_status);
+  const rotuloStatus = d.tipo === "LOCAL" && d.oportunidade_status === "ATIVADO" ? "Reativação ativada" :
+    d.tipo === "BLIND" && d.oportunidade_status === "ATIVADO" ? "Blindagem ativada" : (ROTULO_FUNIL[d.oportunidade_status] || d.oportunidade_status);
   const anot = `<p style="margin-top:12px"><b>Anotações</b></p>
        <textarea id="anotx-${i}" rows="2" placeholder="Nova anotação: com quem falou, o que ficou combinado…"></textarea>
        <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-anotar="${ke}">Salvar anotação</button>
@@ -582,6 +618,27 @@ function blocoSituacao(d) {
       <p class="aviso" id="sit-${i}"></p></div></details>`;
 }
 
+function blocoBlindagem(d) {
+  const b = d.status_local === "ATIVO" ? blindagem.get(d.chave_local) : null;
+  if (!b) return "";
+  const k = "B:" + d.chave_local, i = idk(k);
+  const aberta = ABERTOS.includes(b.oportunidade_status) ? b.oportunidade_status : null;
+  const dB = { ...d, tipo: "BLIND", oportunidade_status: aberta };
+  const sit = { VENCIDO: "contrato vencido", VENCE_90: "vence em até 90 dias", VIGENTE: "contrato vigente" }[b.situacao] || "";
+  const conferir = b.confianca && !["alta", "Blindado"].includes(b.confianca);
+  const podeAtivar = aberta || ["VENCIDO", "VENCE_90"].includes(b.situacao);
+  return `<div class="fu" style="margin-top:10px;border-left:4px solid #c2185b">
+    <b>Blindagem · ${sit}</b>
+    <div class="sub">Contrato: ${esc(b.contrato || "—")} · assinado em ${dataBR(b.assinatura)}</div>
+    <div class="sub">Vencimento: <b>${dataBR(b.vencimento)}</b>${b.vencimento_estimado ? " (estimado: assinatura + 24 meses)" : ""}${conferir ? " · <b>cruzamento a conferir</b>" : ""}</div>
+    <div class="duas" style="align-items:end"><label>Vencimento real <input type="date" id="venc-${i}" value="${b.vencimento || ""}"></label>
+      <button type="button" class="fantasma" data-venc="${b.contrato_id}" data-k="${esc(k)}">Salvar data</button></div>
+    <p class="aviso" id="vencmsg-${i}"></p>
+    ${podeAtivar ? blocoFunil(dB, "Ativar blindagem", [d.contato], "") : ""}
+    <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-docusign="${esc(d.chave_local)}">Pedir envelope ao Claude (Parceria Estratégica 2026)</button>
+    <p class="aviso" id="dsmsg-${i}"></p></div>`;
+}
+
 function popupLocal(d, s) {
   const valor = d.status_local === "ATIVO"
     ? `Mensalidade ativa: <b>${brl(d.mensalidade_ativa)}</b>`
@@ -599,6 +656,7 @@ function popupLocal(d, s) {
     ${blocoInstagram(d)}
     <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p>
     ${PODE_REATIVAR.includes(d.status_local) || d.oportunidade_status ? blocoFunil(d, "Ativar reativação", [d.contato], "") : ""}
+    ${blocoBlindagem(d)}
     ${blocoSituacao(d)}</div>`;
 }
 
@@ -669,6 +727,9 @@ async function ativarPeloBotao(e) {
   if (e.target.closest("[data-insta]")) return abrirEnvio(e.target.closest("[data-insta]").dataset.insta, "INSTAGRAM");
   if (e.target.closest("[data-enviei]")) return confirmarEnvio(e.target.closest("[data-enviei]"));
   if (e.target.closest("[data-anotar]")) return anotar(e.target.closest("[data-anotar]"));
+  if (e.target.closest("[data-venc]")) return salvarVencimento(e.target.closest("[data-venc]"));
+  if (e.target.closest("[data-docusign]")) return pedirEnvelope(e.target.closest("[data-docusign]").dataset.docusign);
+  if (e.target.closest("[data-bl-mapa]")) return verBlindagemNoMapa(e.target.closest("[data-bl-mapa]").dataset.blMapa);
   if (e.target.closest("[data-fechado]")) return pedirConfirmacaoFechado(e.target.closest("[data-fechado]").dataset.fechado, false);
   if (e.target.closest("[data-abriu-outro]")) return pedirConfirmacaoFechado(e.target.closest("[data-abriu-outro]").dataset.abriuOutro, true);
   if (e.target.closest("[data-confirma-fechado]")) return marcarFechado(e.target.closest("[data-confirma-fechado]"));
@@ -679,13 +740,14 @@ async function ativarPeloBotao(e) {
   const rotulo = b.textContent;
   b.disabled = true; b.textContent = "Ativando…";
   const origem = document.getElementById("orig-" + i)?.value || null;
-  const novo = { [col]: val, observacao: obs || null, tipo: col === "chave_local" ? "REATIVACAO" : "PROSPECCAO", origem };
+  const novo = { [col]: val, observacao: obs || null, tipo: tipoDaChave(k) || "PROSPECCAO", origem };
   const { error } = await db.from("oportunidades").insert(novo);
   if (error) {
     b.disabled = false; b.textContent = rotulo;
-    msg.textContent = error.code === "23505" ? "Já foi ativado por outro vendedor." : "Não foi possível ativar: " + error.message;
+    msg.textContent = error.code === "23505" ? "Já existe uma oportunidade em aberto para este cliente." : "Não foi possível ativar: " + error.message;
     return;
   }
+  if (k.startsWith("B:")) { await reabrirDepoisDeBlindagem(k); return; }
   const d = acharPorChave(k);
   if (d) { d.oportunidade_status = "ATIVADO"; d.ativado_em = new Date().toISOString(); d.observacao = obs; }
   desenhar(); contarFollow();
@@ -728,15 +790,16 @@ async function confirmarEnvio(b) {
   b.disabled = true;
   const agora = new Date();
   const retorno = new Date(agora.getTime() + DIAS_RETORNO * 86400000).toISOString().slice(0, 10);
-  const { error } = await db.from("oportunidades").update({
+  const { error } = await filtrar(db.from("oportunidades").update({
     status: "PROPOSTA_ENVIADA", canal, destino, proposta_enviada_em: agora.toISOString(),
     retorno_em: retorno, atualizado_em: agora.toISOString(),
-  }).eq(col, val);
+  }), k);
   if (error) { b.disabled = false; msg.textContent = "Não foi possível registrar: " + error.message; return; }
   const d = acharPorChave(k);
   if (d) d.oportunidade_status = "PROPOSTA_ENVIADA";
   msg.textContent = `Registrado: proposta por ${NOME_CANAL[canal]} para ${destino}. Retorno em ${dataBR(retorno)}.`;
   contarFollow();
+  if (k.startsWith("B:")) carregarBlindagem();
 }
 
 // ---------- Ponto fechado / abriu outro no lugar ----------
@@ -1045,6 +1108,103 @@ function exportarLista() {
   baixarCSV(estado.carteira ? `carteira_${estado.carteira.replace(/\s+/g, "_")}` : "lista_mapa", linhas);
 }
 
+// ---------- Blindagem ----------
+async function carregarBlindagem() {
+  const { data, error } = await db.rpc("blindagem_lista");
+  blindagemErro = error;
+  blindagem = new Map((data || []).map((r) => [r.chave_local, r]));
+  const n = [...blindagem.values()].filter((b) => ["VENCIDO", "VENCE_90"].includes(b.situacao) && !ABERTOS.includes(b.oportunidade_status)).length;
+  $("n-blind").textContent = n ? `· ${n}` : "";
+  if (camada) desenhar();
+  if (!$("folha-blindagem").hidden) abrirBlindagem();
+}
+
+async function reabrirDepoisDeBlindagem(k) {
+  await carregarBlindagem(); contarFollow();
+  const d = acharPorChave("L:" + k.slice(2));
+  if (d && d._m) abrirFicha(d);
+}
+
+async function salvarVencimento(b) {
+  const k = b.dataset.k, i = idk(k), data = document.getElementById("venc-" + i).value;
+  const msg = document.getElementById("vencmsg-" + i);
+  if (!data) { msg.textContent = "Escolha a data de vencimento."; return; }
+  b.disabled = true;
+  const { error } = await db.rpc("salvar_vencimento", { p_contrato_id: +b.dataset.venc, p_vencimento: data });
+  b.disabled = false;
+  if (error) { msg.textContent = "Não foi possível salvar: " + error.message + " (falta rodar o SQL da blindagem?)"; return; }
+  await reabrirDepoisDeBlindagem(k);
+}
+
+function pedirEnvelope(chave) {
+  const b = blindagem.get(chave), d = acharPorChave("L:" + chave) || {};
+  const i = idk("B:" + chave), msg = document.getElementById("dsmsg-" + i);
+  const texto = [
+    "Claude, prepare um envelope de BLINDAGEM no DocuSign com o modelo Parceria Estratégica 2026 para:",
+    `Cliente: ${b.cliente || ""}`,
+    `Razão social: ${b.razao_social || ""}`,
+    `CNPJ: ${b.cnpj || ""}`,
+    `Endereço: ${b.endereco || ""}, ${b.bairro || ""}, ${b.cidade || ""}${b.cep ? ", CEP " + b.cep : ""}`,
+    `Modelo do equipamento: ${b.modelo || d.modelo || ""}`,
+    `Mensalidade atual: ${brl(b.mensalidade_ativa)}`,
+    "Prazo: 36 meses",
+    `Contrato anterior: ${b.contrato || ""} (assinado em ${dataBR(b.assinatura)})`,
+    `Contato na base: ${b.contato || ""}`,
+    "Aprovador (nome, e-mail e WhatsApp): [preencher]",
+    "Nova mensalidade, se mudar: [preencher]",
+  ].join("\n");
+  let copiou = true;
+  try { navigator.clipboard.writeText(texto).catch(() => { copiou = false; }); } catch { copiou = false; }
+  msg.innerHTML = `Pedido copiado. Cole aqui na conversa com o Claude e complete o aprovador.<textarea readonly rows="8" style="width:100%;margin-top:6px">${esc(texto)}</textarea>`;
+  setTimeout(() => { if (!copiou) msg.insertAdjacentHTML("afterbegin", '<span class="erro">Não consegui copiar sozinho: copie o texto abaixo. </span>'); }, 300);
+}
+
+function abrirBlindagem() {
+  $("folha-blindagem").hidden = false;
+  if (blindagemErro) { $("lista-blindagem").innerHTML = `<p class="erro">Não foi possível carregar: ${esc(blindagemErro.message)}. Falta rodar o SQL da blindagem ou importar os contratos?</p>`; return; }
+  const todos = [...blindagem.values()];
+  const andamento = todos.filter((b) => ABERTOS.includes(b.oportunidade_status));
+  const livres = todos.filter((b) => !ABERTOS.includes(b.oportunidade_status));
+  const vencidos = livres.filter((b) => b.situacao === "VENCIDO");
+  const vence90 = livres.filter((b) => b.situacao === "VENCE_90");
+  const vigentes = livres.filter((b) => b.situacao === "VIGENTE");
+  const disp = [...vencidos, ...vence90];
+  const mens = disp.reduce((t, b) => t + Number(b.mensalidade_ativa || 0), 0);
+  const cartao = (b) => `<div class="fu" style="border-left:4px solid #c2185b"><div class="nome">${esc(b.cliente)}</div>
+    <div class="sub">${esc(b.bairro || "")}, ${esc(b.cidade || "")} · ${esc(b.vendedor || "")} · ${brl(b.mensalidade_ativa)}/mês</div>
+    <div class="sub">Vencimento ${dataBR(b.vencimento)}${b.vencimento_estimado ? " (estimado)" : ""}${b.oportunidade_status ? " · " + (ROTULO_FUNIL[b.oportunidade_status] || b.oportunidade_status) : ""}${b.confianca && !["alta", "Blindado"].includes(b.confianca) ? " · conferir cruzamento" : ""}</div>
+    <div class="acoes"><button type="button" class="fantasma" data-bl-mapa="${esc(b.chave_local)}">Ver no mapa e agir</button></div></div>`;
+  const grupo = (t, l) => `<h3>${t} · ${l.length}</h3>` + (l.length ? l.map(cartao).join("") : '<p class="sub">Nada aqui.</p>');
+  $("lista-blindagem").innerHTML = `<div class="kpis">
+      <div class="kpi"><span>Blindagens disponíveis</span><b>${disp.length}</b></div>
+      <div class="kpi"><span>Mensalidade protegida</span><b style="font-size:20px">${brl(mens)}</b><em>por mês</em></div>
+      <div class="kpi"><span>Comissão potencial</span><b style="font-size:20px">${brl(disp.length * COMISSAO_BLINDAGEM)}</b><em>R$ ${COMISSAO_BLINDAGEM} por contrato</em></div>
+      <div class="kpi"><span>Em andamento</span><b>${andamento.length}</b></div></div>
+    ${grupo("Em andamento", andamento)}${grupo("Contrato vencido", vencidos)}${grupo("Vence em até 90 dias", vence90)}
+    <h3>Vigentes · ${vigentes.length}</h3><p class="sub">Contratos ainda no prazo. Aparecem aqui quando faltarem 90 dias. A lista completa sai no Exportar.</p>
+    <p class="sub">Vencimento estimado = assinatura no DocuSign + 24 meses, até alguém salvar a data real na ficha. A comissão potencial é um teto, não uma previsão.</p>`;
+}
+
+async function verBlindagemNoMapa(chave) {
+  const b = blindagem.get(chave); if (!b) return;
+  $("folha-blindagem").hidden = true; $("folha-follow").hidden = true;
+  estado.filtros.add("BLINDAGEM");
+  await buscar(b.latitude, b.longitude, false);
+  const d = acharPorChave("L:" + chave);
+  if (d && d._m) { mapa.setView([d.latitude, d.longitude], 17); abrirFicha(d); }
+}
+
+function exportarBlindagem() {
+  baixarCSV("blindagem", [...blindagem.values()].map((b) => ({
+    cliente: b.cliente, razao_social: b.razao_social, cnpj: b.cnpj, cidade: b.cidade, bairro: b.bairro, vendedor: b.vendedor,
+    contato: b.contato, modelo: b.modelo, mensalidade: Number(b.mensalidade_ativa) || null,
+    situacao: { VENCIDO: "Vencido", VENCE_90: "Vence em até 90 dias", VIGENTE: "Vigente" }[b.situacao],
+    vencimento: dataBR(b.vencimento), vencimento_estimado: b.vencimento_estimado ? "sim" : "não",
+    contrato: b.contrato, assinatura: dataBR(b.assinatura), em_andamento: ROTULO_FUNIL[b.oportunidade_status] || "",
+    cruzamento: b.confianca,
+  })));
+}
+
 // ---------- Painel ----------
 const META_MENSAL = 200;   // meta de contratos por mês (definida pelo Fábio)
 let dadosPainel = null;
@@ -1116,7 +1276,7 @@ async function carregarFollow() {
     .in("status", ["ATIVADO", "PROPOSTA_ENVIADA", "EM_NEGOCIACAO"])
     .order("retorno_em", { ascending: true, nullsFirst: false });
   const pros = "nome_fantasia,razao_social,telefone1,bairro,cidade,segmento,latitude,longitude";
-  const loc = "cliente,razao_social,contato,bairro,cidade,latitude,longitude,mensalidade_ultimo_contrato";
+  const loc = "cliente,razao_social,contato,bairro,cidade,latitude,longitude,mensalidade_ultimo_contrato,mensalidade_ativa";
   let r = await consulta(pros + ",instagram", loc + ",instagram");
   if (r.error) r = await consulta(pros + ",instagram", loc);   // banco sem a coluna locais.instagram
   if (r.error) r = await consulta(pros, loc);                   // banco sem nenhuma coluna de Instagram
@@ -1157,8 +1317,8 @@ function cartaoFollow(o) {
   const l = o.locais;
   const p = o.prospects || (l ? { nome_fantasia: l.cliente, razao_social: l.razao_social, telefone1: l.contato, bairro: l.bairro,
     cidade: l.cidade, latitude: l.latitude, longitude: l.longitude, instagram: l.instagram,
-    segmento: `Reativação · última mensalidade ${brl(l.mensalidade_ultimo_contrato)}` } : {});
-  const k = o.chave_local ? "L:" + o.chave_local : o.cnpj, ke = esc(k);
+    segmento: o.tipo === "BLINDAGEM" ? `Blindagem · mensalidade ${brl(l.mensalidade_ativa)}` : `Reativação · última mensalidade ${brl(l.mensalidade_ultimo_contrato)}` } : {});
+  const k = o.chave_local ? (o.tipo === "BLINDAGEM" ? "B:" : "L:") + o.chave_local : o.cnpj, ke = esc(k);
   const nome = p.nome_fantasia || p.razao_social || o.cnpj;
   const atrasado = o.retorno_em && o.retorno_em < hojeISO();
   const linhaEnvio = o.proposta_enviada_em
@@ -1166,7 +1326,7 @@ function cartaoFollow(o) {
     : `Ativado em ${dataBR(o.ativado_em)}`;
   const retorno = o.retorno_em ? `<span class="${atrasado ? "atrasado" : ""}">Retorno: ${dataBR(o.retorno_em)}</span>` : "";
   const whats = o.canal === "WHATSAPP" ? telWhats(o.destino) : telWhats(p.telefone1);
-  return `<div class="fu"${l ? ' style="border-left:4px solid #e3b008"' : ""}><div class="nome">${esc(nome)}</div>
+  return `<div class="fu"${l ? ` style="border-left:4px solid ${o.tipo === "BLINDAGEM" ? "#c2185b" : "#e3b008"}"` : ""}><div class="nome">${esc(nome)}</div>
     <div class="sub">${esc(p.segmento || "")} · ${esc(p.bairro || "")}, ${esc(p.cidade || "")}</div>
     <div class="sub">${linhaEnvio}${retorno ? " · " + retorno : ""}${o.origem ? " · Origem: " + esc(o.origem) : ""}</div>
     ${o.observacao ? `<div class="sub">${esc(o.observacao)}</div>` : ""}
@@ -1204,7 +1364,8 @@ async function acaoFollow(e) {
     $("folha-follow").hidden = true;
     await buscar(+m.dataset.lat, +m.dataset.lon, false);
     if (m.dataset.fuMapa.startsWith("L:")) estado.filtros.add("REATIVACAO");
-    const d = acharPorChave(m.dataset.fuMapa);
+    if (m.dataset.fuMapa.startsWith("B:")) estado.filtros.add("BLINDAGEM");
+    const d = acharPorChave(m.dataset.fuMapa.replace(/^B:/, "L:"));
     if (d && d._m) abrirFicha(d);
     return;
   }
@@ -1212,7 +1373,7 @@ async function acaoFollow(e) {
   if (a) {
     a.disabled = true;
     const novo = new Date(Date.now() + DIAS_RETORNO * 86400000).toISOString().slice(0, 10);
-    const { error } = await db.from("oportunidades").update({ retorno_em: novo, atualizado_em: new Date().toISOString() }).eq(...alvo(a.dataset.fuAdiar));
+    const { error } = await filtrar(db.from("oportunidades").update({ retorno_em: novo, atualizado_em: new Date().toISOString() }), a.dataset.fuAdiar);
     if (error) { a.disabled = false; a.textContent = "Erro: " + error.message; return; }
     abrirFollow(); contarFollow();
   }
@@ -1221,7 +1382,8 @@ async function acaoFollow(e) {
 async function mudarStatusFollow(e) {
   if (e.target.id === "fu-origem") { estado.filtroOrigem = e.target.value; abrirFollow(); return; }
   const sel = e.target.closest("[data-fu-status]"); if (!sel || !sel.value) return;
-  const { error } = await db.from("oportunidades").update({ status: sel.value, atualizado_em: new Date().toISOString() }).eq(...alvo(sel.dataset.fuStatus));
+  const { error } = await filtrar(db.from("oportunidades").update({ status: sel.value, atualizado_em: new Date().toISOString() }), sel.dataset.fuStatus);
+  if (!error && sel.dataset.fuStatus.startsWith("B:")) carregarBlindagem();
   if (error) { sel.insertAdjacentHTML("afterend", `<span class="erro">${esc(error.message)}</span>`); return; }
   abrirFollow(); contarFollow();
 }
