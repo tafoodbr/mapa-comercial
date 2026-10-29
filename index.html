@@ -166,7 +166,7 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0230</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0315</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-blindagem" type="button">Blindagem <span id="n-blind"></span></button>
@@ -461,7 +461,7 @@ async function buscar(lat, lon, ehVoce) {
   const prospects = pro.error ? [] : (pro.data || []);
   estado.dados = [
     ...(loc.data || []).map((d) => ({ ...d, tipo: "LOCAL" })),
-    ...prospects.map((d) => ({ ...d, tipo: "PROSPECT", cliente: d.nome })),
+    ...prospects.map((d) => { const nome = fantasia(d.nome, d.razao_social); return { ...d, nome, tipo: "PROSPECT", cliente: nome }; }),
   ].sort((x, y) => x.distancia_m - y.distancia_m);
   estado.avisoProspects = pro.error ? "Prospects indisponíveis: " + pro.error.message : "";
   desenhar();
@@ -705,6 +705,26 @@ function popupLocal(d, s) {
     ${blocoSituacao(d)}</div>`;
 }
 
+// A Receita às vezes traz o nome fantasia como "****": nesse caso vale a razão social.
+function fantasia(f, r) { return f && !/^[\s*.\-]*$/.test(f) ? f : (r || ""); }
+
+function blocoEditarNome(d) {
+  const i = idk(chaveDe(d));
+  return `<details style="margin-top:8px"><summary>Editar nome</summary>
+    <label>Nome que aparece no mapa <input id="nomeed-${i}" value="${esc(d.nome)}" placeholder="Ex.: Mobi Hamburgueria"></label>
+    <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-renomear="${esc(d.cnpj)}">Salvar nome</button>
+    <p class="aviso" id="nomemsg-${i}"></p></details>`;
+}
+
+async function renomearProspect(cnpj) {
+  const d = acharPorChave(cnpj), i = idk(cnpj);
+  const nome = document.getElementById("nomeed-" + i).value.trim(), msg = document.getElementById("nomemsg-" + i);
+  if (nome.length < 2) { msg.textContent = "Digite o nome."; return; }
+  const { error } = await db.rpc("editar_nome_prospect", { p_cnpj: cnpj, p_nome: nome });
+  if (error) { msg.textContent = "Não foi possível salvar: " + error.message + " (falta rodar o SQL do nome?)"; return; }
+  if (d) { d.nome = d.cliente = nome; desenhar(); if (d._m) abrirFicha(d); }
+}
+
 function popupProspect(d, s) {
   const onde = `${d.nome} ${d.endereco} ${d.cidade}`;
   const nomeCidade = `${d.nome} ${d.cidade}`;
@@ -720,6 +740,7 @@ function popupProspect(d, s) {
   const funil = blocoFunil(d, "Ativar prospecção", [d.telefone1, d.telefone2], d.email);
   return `<div class="popup"><span class="selo" style="background:${s.hex}">${s.nome}</span> <span class="nota">${d.nota == null ? "Campo" : "Nota " + d.nota}</span>
     <h3>${esc(d.nome)}</h3>
+    ${d.razao_social && d.razao_social !== d.nome ? `<p class="sub">${esc(d.razao_social)}</p>` : ""}
     <p>${d.anos_de_abertura === 0 ? '<span class="selo" style="background:#1f8a4c">Aberto há menos de 1 ano</span> ' : ""}${esc(d.segmento)}${d.expansao_rede ? " · <b>outra unidade de um cliente</b>" : ""}</p>
     <p>${esc(d.endereco)} · ${esc(d.bairro)}, ${esc(d.cidade)}</p>
     <p>Telefone: ${tel}</p>
@@ -729,6 +750,7 @@ function popupProspect(d, s) {
     ${blocoInstagram(d)}
     <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p>
     ${funil}
+    ${blocoEditarNome(d)}
     ${blocoSituacao(d)}</div>`;
 }
 
@@ -773,6 +795,7 @@ async function ativarPeloBotao(e) {
   if (e.target.closest("[data-enviei]")) return confirmarEnvio(e.target.closest("[data-enviei]"));
   if (e.target.closest("[data-anotar]")) return anotar(e.target.closest("[data-anotar]"));
   if (e.target.closest("[data-venc]")) return salvarVencimento(e.target.closest("[data-venc]"));
+  if (e.target.closest("[data-renomear]")) return renomearProspect(e.target.closest("[data-renomear]").dataset.renomear);
   if (e.target.closest("[data-parceria]")) return gerarParceria(e.target.closest("[data-parceria]").dataset.parceria);
   if (e.target.closest("[data-docusign]")) return pedirEnvelope(e.target.closest("[data-docusign]").dataset.docusign);
   if (e.target.closest("[data-bl-mapa]")) return verBlindagemNoMapa(e.target.closest("[data-bl-mapa]").dataset.blMapa);
@@ -1016,7 +1039,7 @@ async function buscarCnpj() {
     .eq("cnpj", cnpj).maybeSingle();
   cnpjBase = data ? { lat: data.latitude, lon: data.longitude } : null;
   if (!data) { await buscarCnpjBrasilApi(cnpj); return; }
-  $("novo-nome").value = data.nome_fantasia || data.razao_social || "";
+  $("novo-nome").value = fantasia(data.nome_fantasia, data.razao_social);
   $("novo-tel").value = data.telefone1 || "";
   $("novo-cep").value = data.cep || ""; ultimoCep = data.cep || "";
   $("novo-end").value = data.endereco || "";
@@ -1036,7 +1059,7 @@ async function buscarCnpjBrasilApi(cnpj) {
     const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
     if (!r.ok) throw new Error();
     const j = await r.json();
-    if (!$("novo-nome").value) $("novo-nome").value = j.nome_fantasia || j.razao_social || "";
+    if (!$("novo-nome").value) $("novo-nome").value = fantasia(j.nome_fantasia, j.razao_social);
     if (!$("novo-tel").value && j.ddd_telefone_1) $("novo-tel").value = j.ddd_telefone_1;
     if (j.cep) { $("novo-cep").value = j.cep; ultimoCep = String(j.cep).replace(/\D/g, ""); }
     const rua = [j.descricao_tipo_de_logradouro, j.logradouro].filter(Boolean).join(" ");
@@ -1375,7 +1398,7 @@ function exportarFollow() {
   baixarCSV("follow_up", ultimoFollow.map((o) => {
     const p = o.prospects || {}, l = o.locais || {};
     return {
-      nome: p.nome_fantasia || p.razao_social || l.cliente || "", tipo: o.tipo === "REATIVACAO" ? "Reativação" : "Prospecção",
+      nome: fantasia(p.nome_fantasia, p.razao_social) || l.cliente || "", tipo: o.tipo === "REATIVACAO" ? "Reativação" : "Prospecção",
       situacao: ROTULO_FUNIL[o.status] || o.status, origem: o.origem || "", ativado_em: dataBR(o.ativado_em),
       canal: NOME_CANAL[o.canal] || "", destino: o.destino || "", proposta_enviada_em: dataBR(o.proposta_enviada_em),
       retorno_em: dataBR(o.retorno_em), telefone: p.telefone1 || l.contato || "", bairro: p.bairro || l.bairro || "",
@@ -1434,7 +1457,7 @@ function cartaoFollow(o) {
     cidade: l.cidade, latitude: l.latitude, longitude: l.longitude, instagram: l.instagram,
     segmento: o.tipo === "BLINDAGEM" ? `Blindagem · mensalidade ${brl(l.mensalidade_ativa)}` : `Reativação · última mensalidade ${brl(l.mensalidade_ultimo_contrato)}` } : {});
   const k = o.chave_local ? (o.tipo === "BLINDAGEM" ? "B:" : "L:") + o.chave_local : o.cnpj, ke = esc(k);
-  const nome = p.nome_fantasia || p.razao_social || o.cnpj;
+  const nome = fantasia(p.nome_fantasia, p.razao_social) || o.cnpj;
   const atrasado = o.retorno_em && o.retorno_em < hojeISO();
   const linhaEnvio = o.proposta_enviada_em
     ? `Proposta por ${NOME_CANAL[o.canal] || o.canal} para ${esc(o.destino)} em ${dataBR(o.proposta_enviada_em)}`
