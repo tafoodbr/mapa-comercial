@@ -166,7 +166,7 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0315</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0320</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-blindagem" type="button">Blindagem <span id="n-blind"></span></button>
@@ -708,6 +708,7 @@ function popupLocal(d, s) {
 // A Receita às vezes traz o nome fantasia como "****": nesse caso vale a razão social.
 function fantasia(f, r) { return f && !/^[\s*.\-]*$/.test(f) ? f : (r || ""); }
 
+const fmtCnpj = (c) => { const d = String(c || "").replace(/\D/g, ""); return d.length === 14 ? d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : (c || "—"); };
 function blocoEditarNome(d) {
   const i = idk(chaveDe(d));
   return `<details style="margin-top:8px"><summary>Editar nome</summary>
@@ -743,6 +744,7 @@ function popupProspect(d, s) {
     ${d.razao_social && d.razao_social !== d.nome ? `<p class="sub">${esc(d.razao_social)}</p>` : ""}
     <p>${d.anos_de_abertura === 0 ? '<span class="selo" style="background:#1f8a4c">Aberto há menos de 1 ano</span> ' : ""}${esc(d.segmento)}${d.expansao_rede ? " · <b>outra unidade de um cliente</b>" : ""}</p>
     <p>${esc(d.endereco)} · ${esc(d.bairro)}, ${esc(d.cidade)}</p>
+    <p>CNPJ: <b>${esc(fmtCnpj(d.cnpj))}</b></p>
     <p>Telefone: ${tel}</p>
     <p>${esc(d.porte || "—")} · ${d.anos_de_abertura ?? "—"} anos de CNPJ${d.unidades_na_regiao > 1 ? ` · ${d.unidades_na_regiao} unidades` : ""}</p>${aproximado(d)}
     ${blocoProva(d)}
