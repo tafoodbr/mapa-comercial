@@ -74,6 +74,17 @@ h2 { font-weight: 800; font-variation-settings: "wdth" 112; font-size: clamp(26p
 
 .destaque { margin: 0; justify-self: center; width: 100%; max-width: 400px; }
 .destaque figcaption, .trilho figcaption { font-size: 15px; color: var(--cinza); margin-top: 10px; }
+.ver-video { display: flex; gap: 14px; align-items: center; margin-top: 8px; font-size: 15px; }
+.ver-video button { font: inherit; font-weight: 700; color: #fff; background: var(--imersao); border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+.ver-video button:hover { background: var(--imersao-escuro); }
+.ver-video button:focus-visible { outline: 3px solid var(--ambar); outline-offset: 2px; }
+dialog.tela { border: 0; padding: 0; background: transparent; max-width: none; max-height: none; width: 100vw; height: 100dvh; margin: 0; }
+dialog.tela::backdrop { background: rgba(5, 15, 22, .92); }
+.tela-caixa { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px; }
+.tela-caixa iframe { width: min(540px, 100%); height: min(92dvh - 60px, 960px); border: 0; border-radius: 10px; background: #fff; }
+.tela-topo { width: min(540px, 100%); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.tela-topo a { color: #cfe8f7; font-size: 15px; }
+.tela-topo button { font: inherit; font-weight: 700; background: #fff; color: #16232a; border: 0; border-radius: 6px; padding: 8px 16px; cursor: pointer; }
 .trilho figcaption b { display: block; color: var(--grafite); font-size: 17px; font-variation-settings: "wdth" 108; }
 .galeria { padding-bottom: 40px; }
 .trilho {
@@ -291,6 +302,13 @@ footer p { max-width: 60em; margin: 0 0 8px; }
   </section>
 </main>
 
+<dialog class="tela" id="tela" aria-label="Vídeo em tela cheia">
+  <div class="tela-caixa">
+    <div class="tela-topo"><a id="tela-insta" target="_blank" rel="noopener">Abrir no app do Instagram</a><button type="button" id="tela-fechar">Fechar</button></div>
+    <iframe id="tela-video" title="Vídeo da RestoClean" allowfullscreen></iframe>
+  </div>
+</dialog>
+
 <footer>
   <div class="coluna">
     <p>RestoClean do Brasil · Sistema de Limpeza RestoClean X-10</p>
@@ -424,6 +442,24 @@ $("form").addEventListener("submit", async (e) => {
   }
   $("estado-ok").hidden = false; $("estado-ok").focus();
 });
+
+// Vídeos: botão de tela cheia (o vídeo abre grande por cima da página) e link para o app do Instagram
+document.querySelectorAll("figure iframe").forEach((f) => {
+  const post = f.src.replace(/embed\/?$/, "");
+  const barra = document.createElement("div"); barra.className = "ver-video";
+  const b = document.createElement("button"); b.type = "button"; b.textContent = "Tela cheia";
+  const a = Object.assign(document.createElement("a"), { href: post, target: "_blank", rel: "noopener", textContent: "Abrir no Instagram" });
+  b.onclick = () => {
+    $("tela-video").src = f.src; $("tela-video").title = f.title; $("tela-insta").href = post;
+    $("tela").showModal();
+  };
+  barra.append(b, a);
+  f.closest("figure").querySelector("figcaption").append(barra);
+});
+const fecharTela = () => { $("tela").close(); };
+$("tela-fechar").onclick = fecharTela;
+$("tela").addEventListener("close", () => { $("tela-video").src = "about:blank"; });
+$("tela").addEventListener("click", (e) => { if (e.target.classList.contains("tela-caixa")) fecharTela(); });
 
 iniciar();
 </script>
