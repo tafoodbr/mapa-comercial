@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parceria RestoClean</title>
+<meta name="description" content="Você foi indicado para conhecer o Sistema de Limpeza RestoClean X-10, limpeza por imersão para cozinhas profissionais.">
+<meta property="og:title" content="Você foi indicado para a RestoClean">
+<meta property="og:description" content="Conheça a limpeza por imersão RestoClean X-10 e receba uma proposta.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --aco: #e8eced; --chapa: #f7f9f9; --grafite: #16232a; --cinza: #51626a; --linha: #c9d3d6;
+  --imersao: #0a6b86; --imersao-escuro: #07506a; --espuma: #d5edf2; --ambar: #b8761b; --erro: #a8321e;
+  --ok: #1f7a4a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --aco: #121b20; --chapa: #1a252b; --grafite: #e7eef0; --cinza: #9fb0b7; --linha: #2c3a41;
+    --imersao: #3fa7c4; --imersao-escuro: #6cc0d8; --espuma: #173640; --ambar: #d9a14a; --erro: #f08a74; --ok: #5ccf8f;
+  }
+}
+:root[data-theme="dark"] {
+  --aco: #121b20; --chapa: #1a252b; --grafite: #e7eef0; --cinza: #9fb0b7; --linha: #2c3a41;
+  --imersao: #3fa7c4; --imersao-escuro: #6cc0d8; --espuma: #173640; --ambar: #d9a14a; --erro: #f08a74; --ok: #5ccf8f;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--aco); color: var(--grafite);
+  font-family: "Archivo", system-ui, sans-serif; font-variation-settings: "wdth" 100;
+  font-size: 17px; line-height: 1.55;
+}
+a { color: var(--imersao); }
+.coluna { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+.marca { display: flex; align-items: center; gap: 10px; padding-top: 18px; padding-bottom: 18px; font-weight: 800; font-variation-settings: "wdth" 115; letter-spacing: .01em; font-size: 19px; }
+.marca svg { width: 30px; height: 30px; }
+
+/* Hero: o convite em primeiro lugar, o tanque como imagem */
+.hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px; align-items: center; padding-top: 28px; padding-bottom: 56px; }
+.convite { font-size: 17px; color: var(--cinza); margin: 0 0 14px; }
+.convite b { color: var(--grafite); }
+h1 {
+  margin: 0 0 18px; font-weight: 800; font-variation-settings: "wdth" 125;
+  font-size: clamp(36px, 6.4vw, 66px); line-height: .98; letter-spacing: -.02em;
+}
+.lead { font-size: 19px; max-width: 34em; margin: 0 0 26px; }
+.botao {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 26px;
+  background: var(--imersao); color: #fff; border: 0; border-radius: 6px; font: inherit; font-weight: 700;
+  font-size: 17px; text-decoration: none; cursor: pointer;
+}
+.botao:hover { background: var(--imersao-escuro); }
+.botao:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--ambar); outline-offset: 2px; }
+.botao[disabled] { opacity: .6; cursor: wait; }
+.tanque { width: 100%; max-width: 420px; justify-self: center; }
+
+/* Faixas de conteúdo */
+.faixa { background: var(--chapa); border-top: 1px solid var(--linha); border-bottom: 1px solid var(--linha); padding: 56px 0; }
+.solta { padding-top: 56px; padding-bottom: 56px; }
+h2 { font-weight: 800; font-variation-settings: "wdth" 112; font-size: clamp(26px, 3.6vw, 36px); line-height: 1.08; margin: 0 0 14px; letter-spacing: -.01em; }
+.dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+.beneficios { list-style: none; padding: 0; margin: 22px 0 0; }
+.beneficios li { display: grid; grid-template-columns: 40px 1fr; gap: 14px; padding: 16px 0; border-top: 1px solid var(--linha); }
+.beneficios li:last-child { border-bottom: 1px solid var(--linha); }
+.beneficios svg { width: 34px; height: 34px; color: var(--imersao); }
+.beneficios b { display: block; font-variation-settings: "wdth" 108; font-size: 18px; }
+.beneficios span { color: var(--cinza); }
+.video { width: 100%; max-width: 400px; aspect-ratio: 9 / 15; border: 0; border-radius: 10px; background: var(--espuma); display: block; justify-self: center; }
+
+.passos { list-style: none; counter-reset: p; padding: 0; margin: 26px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.passos li { counter-increment: p; border-top: 3px solid var(--imersao); padding-top: 14px; }
+.passos li::before { content: counter(p); display: block; font-weight: 800; font-variation-settings: "wdth" 125; font-size: 40px; line-height: 1; color: var(--imersao); margin-bottom: 8px; }
+.passos b { display: block; font-size: 18px; }
+.passos span { color: var(--cinza); }
+
+/* Formulário */
+.form-area { display: grid; grid-template-columns: .9fr 1.1fr; gap: 48px; align-items: start; }
+form { background: var(--chapa); border: 1px solid var(--linha); border-radius: 10px; padding: 26px; }
+label { display: block; font-weight: 600; font-size: 15px; margin: 0 0 16px; }
+label small { font-weight: 400; color: var(--cinza); }
+input[type=text], input[type=tel] {
+  display: block; width: 100%; margin-top: 6px; min-height: 50px; padding: 0 14px; font: inherit; font-size: 17px;
+  color: var(--grafite); background: var(--aco); border: 1px solid var(--linha); border-radius: 6px;
+}
+input[aria-invalid=true] { border-color: var(--erro); }
+.dica { display: block; font-weight: 400; font-size: 14px; color: var(--cinza); margin-top: 5px; min-height: 1em; }
+.dica.erro { color: var(--erro); }
+.aceite { display: grid; grid-template-columns: 22px 1fr; gap: 10px; font-weight: 400; font-size: 14px; color: var(--cinza); }
+.aceite input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--imersao); }
+form .botao { width: 100%; margin-top: 6px; }
+.aviso-form { margin: 14px 0 0; font-size: 15px; }
+.aviso-form.erro { color: var(--erro); }
+.estado { background: var(--chapa); border: 1px solid var(--linha); border-radius: 10px; padding: 26px; }
+.estado h3 { margin: 0 0 8px; font-variation-settings: "wdth" 112; font-size: 22px; }
+.estado.ok h3 { color: var(--ok); }
+.vagas { color: var(--cinza); font-size: 15px; margin-top: 10px; }
+
+footer { padding: 34px 0 46px; color: var(--cinza); font-size: 14px; border-top: 1px solid var(--linha); }
+footer p { max-width: 60em; margin: 0 0 8px; }
+
+/* Gordura saindo da panela: uma única animação, ao abrir a página */
+.gota { animation: sobe 3.2s ease-out both; }
+.gota:nth-of-type(2) { animation-delay: .35s; } .gota:nth-of-type(3) { animation-delay: .7s; }
+.gota:nth-of-type(4) { animation-delay: 1.05s; } .gota:nth-of-type(5) { animation-delay: 1.4s; }
+@keyframes sobe { 0% { transform: translateY(0); opacity: 1; } 75% { opacity: .8; } 100% { transform: translateY(-120px); opacity: 0; } }
+.crosta { animation: some 3.6s ease-in .2s both; }
+@keyframes some { from { opacity: 1; } to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .gota, .crosta { animation: none; opacity: 0; } }
+
+@media (max-width: 820px) {
+  body { font-size: 16px; }
+  .hero, .dupla, .form-area { grid-template-columns: 1fr; gap: 28px; }
+  .hero { padding-top: 8px; padding-bottom: 40px; }
+  .tanque { max-width: 300px; grid-row: 1; }
+  .passos { grid-template-columns: 1fr; gap: 20px; }
+  .faixa { padding: 40px 0; } .solta { padding-top: 40px; padding-bottom: 40px; }
+  form, .estado { padding: 20px; }
+}
+</style>
+</head>
+<body>
+<header class="coluna marca">
+  <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="9" width="26" height="19" rx="3" fill="var(--imersao)"/><path d="M3 15c5 0 5-3 10-3s5 3 10 3 5-3 6-3v3c-1 0-1 3-6 3s-5-3-10-3-5 3-10 3z" fill="var(--espuma)"/><circle cx="12" cy="5" r="2" fill="var(--imersao)"/><circle cx="19" cy="3.5" r="1.5" fill="var(--imersao)"/></svg>
+  RestoClean
+</header>
+
+<main>
+  <section class="coluna hero">
+    <div>
+      <p class="convite" id="convite">Você recebeu um convite de parceria.</p>
+      <h1>A gordura sai de molho. A sua equipe, não.</h1>
+      <p class="lead">O Sistema de Limpeza RestoClean X-10 limpa por imersão: panelas, grelhas, filtros e utensílios ficam submersos e a gordura se solta no tanque, com muito menos esfregação. É o aliado das cozinhas profissionais no combate à gordura.</p>
+      <a class="botao" href="#adesao">Quero receber a proposta</a>
+    </div>
+    <svg class="tanque" viewBox="0 0 300 300" role="img" aria-label="Tanque de imersão com uma panela submersa soltando a gordura">
+      <rect x="20" y="96" width="260" height="184" rx="14" fill="var(--chapa)" stroke="var(--linha)" stroke-width="3"/>
+      <rect x="30" y="128" width="240" height="142" rx="8" fill="var(--espuma)"/>
+      <path d="M30 136c20 0 20-8 40-8s20 8 40 8 20-8 40-8 20 8 40 8 20-8 40-8 20 8 40 8" fill="none" stroke="var(--imersao)" stroke-width="3"/>
+      <g>
+        <rect x="88" y="168" width="124" height="62" rx="10" fill="var(--grafite)" opacity=".88"/>
+        <rect x="212" y="186" width="54" height="12" rx="6" fill="var(--grafite)" opacity=".88"/>
+        <g class="crosta" fill="var(--ambar)">
+          <ellipse cx="112" cy="172" rx="18" ry="6"/><ellipse cx="150" cy="170" rx="22" ry="5"/><ellipse cx="188" cy="173" rx="15" ry="5"/>
+          <ellipse cx="128" cy="222" rx="14" ry="5"/><ellipse cx="176" cy="224" rx="16" ry="5"/>
+        </g>
+      </g>
+      <g fill="var(--ambar)">
+        <circle class="gota" cx="110" cy="160" r="6"/><circle class="gota" cx="148" cy="156" r="8"/>
+        <circle class="gota" cx="186" cy="162" r="5"/><circle class="gota" cx="128" cy="150" r="4"/>
+        <circle class="gota" cx="170" cy="150" r="6"/>
+      </g>
+      <rect x="20" y="96" width="260" height="22" rx="10" fill="var(--imersao)"/>
+    </svg>
+  </section>
+
+  <section class="faixa">
+    <div class="coluna dupla">
+      <div>
+        <h2>O que muda na limpeza da cozinha</h2>
+        <p>A limpeza pesada deixa de depender de horas de esfregação no fim do turno.</p>
+        <ul class="beneficios">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 20c.8-4 3.6-6 7-6s6.2 2 7 6"/></svg>
+            <div><b>Economia de mão de obra</b><span>A equipe deixa as peças no tanque e segue com o serviço.</span></div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>
+            <div><b>Operação mais eficiente</b><span>Utensílios limpos e prontos com menos espera entre um turno e outro.</span></div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3h8l-1 4h-6zM7 7h10l1 14H6z"/><path d="M10 12h4"/></svg>
+            <div><b>Economia de produtos de limpeza</b><span>Menos desengraxante gasto em cada peça.</span></div></li>
+        </ul>
+      </div>
+      <iframe class="video" src="https://www.instagram.com/reel/DbqS_tzRrYa/embed" title="Vídeo da limpeza por imersão RestoClean" loading="lazy" allowfullscreen></iframe>
+    </div>
+  </section>
+
+  <section class="coluna solta">
+    <h2>Como funciona daqui para frente</h2>
+    <ol class="passos">
+      <li><b>Você preenche seus dados</b><span>Leva um minuto. Os dados ficam só com a RestoClean.</span></li>
+      <li><b>A RestoClean chama você no WhatsApp</b><span>Para entender a sua cozinha e o volume de louça.</span></li>
+      <li><b>Você recebe a proposta</b><span>Com o modelo de equipamento indicado para a sua operação.</span></li>
+    </ol>
+  </section>
+
+  <section class="faixa" id="adesao">
+    <div class="coluna form-area">
+      <div>
+        <h2>Formulário de adesão</h2>
+        <p id="texto-adesao">Preencha para receber a proposta da RestoClean.</p>
+        <p class="vagas" id="vagas"></p>
+      </div>
+
+      <div>
+        <div class="estado" id="estado-carregando"><p>Conferindo o seu convite…</p></div>
+
+        <div class="estado" id="estado-fechado" hidden>
+          <h3 id="fechado-titulo">Convite indisponível</h3>
+          <p id="fechado-texto"></p>
+        </div>
+
+        <form id="form" hidden novalidate>
+          <label>Nome completo
+            <input type="text" id="nome" autocomplete="name" required>
+            <span class="dica" id="dica-nome"></span></label>
+          <label>CPF
+            <input type="text" id="cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" required>
+            <span class="dica" id="dica-cpf"></span></label>
+          <label>CNPJ do estabelecimento
+            <input type="text" id="cnpj" inputmode="numeric" autocomplete="off" placeholder="00.000.000/0000-00" required>
+            <span class="dica" id="dica-cnpj"></span></label>
+          <label>Nome do estabelecimento <small>(preenchido pelo CNPJ quando possível)</small>
+            <input type="text" id="estab" autocomplete="organization"></label>
+          <label>WhatsApp com DDD
+            <input type="tel" id="whats" inputmode="tel" autocomplete="tel" placeholder="(11) 91234-5678" required>
+            <span class="dica" id="dica-whats"></span></label>
+          <label class="aceite"><input type="checkbox" id="aceite" required>
+            <span>Autorizo a RestoClean a usar estes dados para me contatar e enviar a proposta comercial. Os dados não são compartilhados com terceiros.</span></label>
+          <span class="dica" id="dica-aceite"></span>
+          <button class="botao" type="submit" id="enviar">Enviar adesão</button>
+          <p class="aviso-form" id="aviso" role="status" aria-live="polite"></p>
+        </form>
+
+        <div class="estado ok" id="estado-ok" hidden tabindex="-1">
+          <h3>Adesão enviada</h3>
+          <p>Recebemos os seus dados. A RestoClean vai chamar você no WhatsApp <b id="ok-whats"></b> para conversar sobre a proposta.</p>
+          <p id="ok-wa" hidden><a class="botao" id="ok-wa-link" target="_blank" rel="noopener">Falar agora no WhatsApp</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="coluna">
+    <p>RestoClean do Brasil · Sistema de Limpeza RestoClean X-10</p>
+    <p>Os dados deste formulário são usados apenas para o contato comercial da RestoClean com você, conforme a LGPD. Para pedir a exclusão, responda à mensagem da RestoClean no WhatsApp.</p>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = "https://wdqlucvooagrjnztkphb.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_OleKOs9bUR9VQdmGN1qQ1w_ANFI_Liz";
+// WhatsApp da RestoClean para o botão "Falar agora" depois do envio (só números, com DDD). Vazio = botão escondido.
+const WHATSAPP_RESTOCLEAN = "";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const $ = (id) => document.getElementById(id);
+const so = (v) => (v || "").replace(/\D/g, "");
+const codigo = (new URLSearchParams(location.search).get("c") || "").trim().toUpperCase();
+let parceiro = "";
+
+function mascara(v, modelo) {
+  const d = so(v); let r = "", i = 0;
+  for (const c of modelo) { if (i >= d.length) break; r += c === "9" ? d[i++] : c; }
+  return r;
+}
+const mascaraTel = (v) => so(v).length > 10 ? mascara(v, "(99) 99999-9999") : mascara(v, "(99) 9999-9999");
+
+function cpfValido(v) {
+  const d = so(v); if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
+  for (const n of [9, 10]) {
+    let s = 0; for (let i = 0; i < n; i++) s += +d[i] * (n + 1 - i);
+    if ((s * 10) % 11 % 10 !== +d[n]) return false;
+  }
+  return true;
+}
+function cnpjValido(v) {
+  const d = so(v); if (d.length !== 14 || /^(\d)\1+$/.test(d)) return false;
+  const pesos = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  for (const n of [12, 13]) {
+    let s = 0; for (let i = 0; i < n; i++) s += +d[i] * pesos[i + 13 - n];
+    const r = s % 11, dv = r < 2 ? 0 : 11 - r;
+    if (dv !== +d[n]) return false;
+  }
+  return true;
+}
+
+function fechado(titulo, texto) {
+  $("estado-carregando").hidden = true; $("form").hidden = true;
+  $("fechado-titulo").textContent = titulo; $("fechado-texto").textContent = texto;
+  $("estado-fechado").hidden = false;
+}
+
+async function iniciar() {
+  if (!codigo) return fechado("Falta o código do convite", "Este endereço precisa do link completo de parceria. Peça o link de novo a quem indicou você.");
+  const { data, error } = await db.rpc("parceria_info", { p_codigo: codigo });
+  if (error) return fechado("Não foi possível conferir o convite", "Verifique a internet e recarregue a página.");
+  const info = (data || [])[0];
+  if (!info) return fechado("Convite não encontrado", "O código deste link não existe. Peça o link de novo a quem indicou você.");
+  parceiro = info.parceiro || "";
+  if (parceiro) {
+    $("convite").innerHTML = "";
+    $("convite").append("Convite de parceria de ", Object.assign(document.createElement("b"), { textContent: parceiro }), ".");
+    $("texto-adesao").textContent = `Preencha para receber a proposta da RestoClean. Ao fechar o contrato, ${parceiro} ganha desconto na mensalidade como agradecimento pela indicação.`;
+    document.title = `${parceiro} indicou você · RestoClean`;
+  }
+  if (!info.aberto) return fechado("Vagas preenchidas", "As vagas desta rodada de parcerias foram preenchidas pela nossa capacidade de produção. Fale com quem indicou você para saber da próxima rodada.");
+  if (info.vagas <= 20) $("vagas").textContent = `Restam ${info.vagas} vagas nesta rodada de parcerias.`;
+  $("estado-carregando").hidden = true; $("form").hidden = false;
+}
+
+function marcar(id, msg) {
+  $(id).setAttribute("aria-invalid", msg ? "true" : "false");
+  const dica = $("dica-" + id); dica.textContent = msg || ""; dica.classList.toggle("erro", !!msg);
+  return !msg;
+}
+
+$("cpf").addEventListener("input", (e) => { e.target.value = mascara(e.target.value, "999.999.999-99"); });
+$("whats").addEventListener("input", (e) => { e.target.value = mascaraTel(e.target.value); });
+let ultimoCnpj = "";
+$("cnpj").addEventListener("input", async (e) => {
+  e.target.value = mascara(e.target.value, "99.999.999/9999-99");
+  const d = so(e.target.value);
+  if (d.length !== 14 || d === ultimoCnpj) return;
+  ultimoCnpj = d;
+  if (!cnpjValido(d)) return marcar("cnpj", "Confira o CNPJ: os números não batem.");
+  marcar("cnpj", "");
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${d}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    const nome = j.nome_fantasia || j.razao_social || "";
+    if (nome && !$("estab").value.trim()) $("estab").value = nome;
+    if (j.descricao_situacao_cadastral && j.descricao_situacao_cadastral !== "ATIVA")
+      marcar("cnpj", `Este CNPJ aparece como ${j.descricao_situacao_cadastral.toLowerCase()} na Receita.`);
+  } catch { /* consulta opcional: segue sem preencher */ }
+});
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const nome = $("nome").value.trim().replace(/\s+/g, " ");
+  const ok = [
+    marcar("nome", nome.split(" ").length < 2 || nome.length < 5 ? "Escreva nome e sobrenome." : ""),
+    marcar("cpf", cpfValido($("cpf").value) ? "" : "Confira o CPF: os números não batem."),
+    marcar("cnpj", cnpjValido($("cnpj").value) ? "" : "Confira o CNPJ: os números não batem."),
+    marcar("whats", [10, 11].includes(so($("whats").value).length) ? "" : "Digite o WhatsApp com DDD."),
+  ].every(Boolean);
+  const aceite = $("aceite").checked;
+  $("dica-aceite").textContent = aceite ? "" : "Marque a autorização para enviar.";
+  $("dica-aceite").classList.toggle("erro", !aceite);
+  if (!ok || !aceite) { $("form").querySelector("[aria-invalid=true]")?.focus(); return; }
+
+  const b = $("enviar"); b.disabled = true; b.textContent = "Enviando…"; $("aviso").textContent = "";
+  const { error } = await db.rpc("registrar_indicacao", {
+    p_codigo: codigo, p_nome: nome, p_cpf: so($("cpf").value), p_cnpj: so($("cnpj").value),
+    p_whatsapp: so($("whats").value), p_estabelecimento: $("estab").value.trim() || null,
+  });
+  b.disabled = false; b.textContent = "Enviar adesão";
+  if (error) {
+    $("aviso").className = "aviso-form erro";
+    $("aviso").textContent = error.message && !/fetch|network/i.test(error.message)
+      ? error.message : "Não foi possível enviar. Verifique a internet e tente de novo.";
+    return;
+  }
+  $("form").hidden = true; $("vagas").textContent = "";
+  $("ok-whats").textContent = $("whats").value;
+  if (WHATSAPP_RESTOCLEAN) {
+    const msg = `Olá! Acabei de enviar a adesão da parceria RestoClean${parceiro ? " (indicação de " + parceiro + ")" : ""}. Sou ${nome}${$("estab").value.trim() ? ", do " + $("estab").value.trim() : ""}.`;
+    $("ok-wa-link").href = `https://wa.me/55${WHATSAPP_RESTOCLEAN}?text=${encodeURIComponent(msg)}`;
+    $("ok-wa").hidden = false;
+  }
+  $("estado-ok").hidden = false; $("estado-ok").focus();
+});
+
+iniciar();
+</script>
+</body>
+</html>

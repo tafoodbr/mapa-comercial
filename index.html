@@ -166,10 +166,11 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v26.10-1600</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0230</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-blindagem" type="button">Blindagem <span id="n-blind"></span></button>
+    <button class="fantasma" id="btn-indicacoes" type="button">Indicações <span id="n-ind"></span></button>
     <button class="fantasma" id="btn-painel" type="button">Painel</button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
     <button class="fantasma" id="btn-sair" type="button">Sair</button>
@@ -240,6 +241,13 @@ select.chip { padding-right: 8px; }
     <button class="fantasma" type="button" id="exportar-blindagem">Exportar</button>
     <button class="fantasma" type="button" id="fechar-blindagem">Fechar</button></div>
   <div class="bloco" id="lista-blindagem"><p class="sub">Carregando…</p></div>
+</section>
+
+<section class="folha" id="folha-indicacoes" hidden>
+  <div class="folha-topo"><h2>Indicações</h2>
+    <button class="fantasma" type="button" id="exportar-indicacoes">Exportar</button>
+    <button class="fantasma" type="button" id="fechar-indicacoes">Fechar</button></div>
+  <div class="bloco" id="lista-indicacoes"><p class="sub">Carregando…</p></div>
 </section>
 
 <section class="folha" id="folha-painel" hidden>
@@ -377,6 +385,14 @@ function abrirApp() {
   montarModos();
   $("btn-painel").onclick = abrirPainel;
   $("btn-blindagem").onclick = abrirBlindagem;
+  $("btn-indicacoes").onclick = abrirIndicacoes;
+  $("fechar-indicacoes").onclick = () => { $("folha-indicacoes").hidden = true; };
+  $("exportar-indicacoes").onclick = () => baixarCSV("indicacoes", dadosIndicacoes.map((r) => ({
+    data: dataBR(r.criado_em), indicado: r.nome, estabelecimento: r.estabelecimento, cnpj: r.cnpj, cpf: r.cpf, whatsapp: r.whatsapp,
+    status: ROTULO_IND[r.status], contrato_em: dataBR(r.contrato_em), indicado_por: parceiroDe(r), codigo: r.codigo })));
+  $("lista-indicacoes").addEventListener("change", mudarIndicacao);
+  $("lista-indicacoes").addEventListener("click", (e) => { if (e.target.closest("#ind-apurar")) apurarIndicacoes(); });
+  contarIndicacoes();
   $("fechar-blindagem").onclick = () => { $("folha-blindagem").hidden = true; };
   $("exportar-blindagem").onclick = exportarBlindagem;
   $("lista-blindagem").addEventListener("click", ativarPeloBotao);
@@ -639,6 +655,34 @@ function blocoBlindagem(d) {
     <p class="aviso" id="dsmsg-${i}"></p></div>`;
 }
 
+const URL_PARCERIA = "https://tafoodbr.github.io/mapa-comercial/parceria/?c=";
+function blocoParceria(d) {
+  if (d.status_local !== "ATIVO") return "";
+  const i = idk("P:" + d.chave_local);
+  return `<div class="fu" style="margin-top:10px;border-left:4px solid #0a6b86">
+    <b>Link de parceria</b>
+    <div class="sub">O cliente indica amigos do segmento. A cada indicação que virar contrato, ele ganha 20% de desconto na mensalidade; 3 no mesmo ciclo deixam o mês grátis.</div>
+    <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-parceria="${esc(d.chave_local)}">Gerar e copiar link de parceria</button>
+    <p class="aviso" id="parcmsg-${i}"></p></div>`;
+}
+
+async function gerarParceria(chave) {
+  const d = acharPorChave("L:" + chave) || {};
+  const msg = document.getElementById("parcmsg-" + idk("P:" + chave));
+  msg.textContent = "Gerando…";
+  const { data: codigo, error } = await db.rpc("link_parceiro", { p_chave_local: chave });
+  if (error) { msg.textContent = "Não foi possível gerar: " + error.message + " (falta rodar o SQL da indicação?)"; return; }
+  const link = URL_PARCERIA + codigo;
+  const texto = `Olá! Seu link de parceria com a RestoClean está pronto: ${link}\n\n` +
+    `Mande para amigos e colegas do segmento. Quando alguém indicado por você assinar contrato com a RestoClean, você ganha 20% de desconto na sua mensalidade. Com 3 contratos no mesmo mês, a mensalidade sai de graça.`;
+  let copiou = true;
+  try { await navigator.clipboard.writeText(texto); } catch { copiou = false; }
+  msg.innerHTML = `${copiou ? "Mensagem com o link copiada." : "Copie a mensagem abaixo."} Código <b>${esc(codigo)}</b>.
+    <textarea readonly rows="5" style="width:100%;margin-top:6px">${esc(texto)}</textarea>
+    <a href="https://wa.me/?text=${encodeURIComponent(texto)}" target="_blank" rel="noopener">Enviar ao cliente pelo WhatsApp</a>
+    · <a href="${link}" target="_blank" rel="noopener">Ver a página</a>`;
+}
+
 function popupLocal(d, s) {
   const valor = d.status_local === "ATIVO"
     ? `Mensalidade ativa: <b>${brl(d.mensalidade_ativa)}</b>`
@@ -657,6 +701,7 @@ function popupLocal(d, s) {
     <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p>
     ${PODE_REATIVAR.includes(d.status_local) || d.oportunidade_status ? blocoFunil(d, "Ativar reativação", [d.contato], "") : ""}
     ${blocoBlindagem(d)}
+    ${blocoParceria(d)}
     ${blocoSituacao(d)}</div>`;
 }
 
@@ -728,6 +773,7 @@ async function ativarPeloBotao(e) {
   if (e.target.closest("[data-enviei]")) return confirmarEnvio(e.target.closest("[data-enviei]"));
   if (e.target.closest("[data-anotar]")) return anotar(e.target.closest("[data-anotar]"));
   if (e.target.closest("[data-venc]")) return salvarVencimento(e.target.closest("[data-venc]"));
+  if (e.target.closest("[data-parceria]")) return gerarParceria(e.target.closest("[data-parceria]").dataset.parceria);
   if (e.target.closest("[data-docusign]")) return pedirEnvelope(e.target.closest("[data-docusign]").dataset.docusign);
   if (e.target.closest("[data-bl-mapa]")) return verBlindagemNoMapa(e.target.closest("[data-bl-mapa]").dataset.blMapa);
   if (e.target.closest("[data-fechado]")) return pedirConfirmacaoFechado(e.target.closest("[data-fechado]").dataset.fechado, false);
@@ -1203,6 +1249,75 @@ function exportarBlindagem() {
     contrato: b.contrato, assinatura: dataBR(b.assinatura), em_andamento: ROTULO_FUNIL[b.oportunidade_status] || "",
     cruzamento: b.confianca,
   })));
+}
+
+// ---------- Indicações (programa de parceria) ----------
+const ROTULO_IND = { NOVA: "Nova", EM_CONTATO: "Em contato", CONTRATO_ASSINADO: "Contrato assinado", DESCARTADA: "Descartada" };
+let dadosIndicacoes = [];
+const parceiroDe = (r) => r.parceiros?.locais?.cliente || r.parceiros?.locais?.razao_social || r.codigo;
+async function contarIndicacoes() {
+  const { count } = await db.from("indicacoes").select("id", { count: "exact", head: true }).eq("status", "NOVA");
+  $("n-ind").textContent = count ? `· ${count}` : "";
+}
+async function abrirIndicacoes() {
+  $("folha-indicacoes").hidden = false;
+  const el = $("lista-indicacoes");
+  const [{ data, error }, cfg] = await Promise.all([
+    db.from("indicacoes").select("*,parceiros(chave_local,locais(cliente,razao_social,vendedor))").order("criado_em", { ascending: false }),
+    db.from("programa_indicacao").select("*").maybeSingle(),
+  ]);
+  if (error) { el.innerHTML = `<p class="erro">Não foi possível carregar: ${esc(error.message)}. Falta rodar o SQL da indicação?</p>`; return; }
+  dadosIndicacoes = data || [];
+  const limite = cfg.data?.limite_contratos ?? 100;
+  const assinados = dadosIndicacoes.filter((r) => r.status === "CONTRATO_ASSINADO").length;
+  const novas = dadosIndicacoes.filter((r) => r.status === "NOVA").length;
+  const hoje = new Date().toISOString().slice(0, 10), ini = new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10);
+  const opcoes = (st) => Object.entries(ROTULO_IND).map(([k, v]) => `<option value="${k}"${k === st ? " selected" : ""}>${v}</option>`).join("");
+  const cartao = (r) => `<div class="fu" style="border-left:4px solid #0a6b86"><div class="nome">${esc(r.estabelecimento || r.nome)}</div>
+    <div class="sub">${esc(r.nome)} · CNPJ ${esc(r.cnpj)} · indicado por <b>${esc(parceiroDe(r))}</b> em ${dataBR(r.criado_em)}</div>
+    <div class="acoes"><a href="https://wa.me/55${esc(r.whatsapp)}" target="_blank" rel="noopener">WhatsApp ${esc(r.whatsapp)}</a>
+      <select data-ind="${r.id}" aria-label="Situação da indicação">${opcoes(r.status)}</select>
+      ${r.status === "CONTRATO_ASSINADO" ? `<span class="sub">assinado em ${dataBR(r.contrato_em)}</span>` : ""}</div>
+    <p class="aviso" id="indmsg-${r.id}"></p></div>`;
+  const grupos = ["NOVA", "EM_CONTATO", "CONTRATO_ASSINADO", "DESCARTADA"].map((st) => {
+    const l = dadosIndicacoes.filter((r) => r.status === st);
+    return `<h3>${ROTULO_IND[st]} · ${l.length}</h3>` + (l.length ? l.map(cartao).join("") : '<p class="sub">Nada aqui.</p>');
+  }).join("");
+  el.innerHTML = `<div class="kpis">
+      <div class="kpi"><span>Contratos pelo programa</span><b>${assinados}/${limite}</b><em>trava da capacidade de produção</em></div>
+      <div class="kpi"><span>Indicações novas</span><b>${novas}</b></div>
+      <div class="kpi"><span>Total recebido</span><b>${dadosIndicacoes.length}</b></div></div>
+    <h3>Desconto do ciclo</h3>
+    <div class="duas" style="align-items:end"><label>De <input type="date" id="ind-ini" value="${ini}"></label><label>Até <input type="date" id="ind-fim" value="${hoje}"></label></div>
+    <button type="button" class="fantasma" id="ind-apurar" style="width:100%;margin-top:6px">Calcular desconto dos parceiros</button>
+    <div id="ind-apuracao"></div>
+    ${grupos}
+    <p class="sub">Só administrador ou gestor muda a situação. Ao marcar "Contrato assinado", a data de hoje vira a data da assinatura e entra no ciclo do desconto.</p>`;
+}
+async function mudarIndicacao(e) {
+  const sel = e.target.closest("[data-ind]"); if (!sel) return;
+  const id = +sel.dataset.ind, msg = document.getElementById("indmsg-" + id);
+  sel.disabled = true;
+  const { error } = await db.rpc("mudar_indicacao", { p_id: id, p_status: sel.value });
+  sel.disabled = false;
+  if (error) { msg.textContent = "Não foi possível mudar: " + error.message; const r = dadosIndicacoes.find((x) => x.id === id); if (r) sel.value = r.status; return; }
+  await abrirIndicacoes(); contarIndicacoes();
+}
+let dadosApuracao = [];
+async function apurarIndicacoes() {
+  const el = $("ind-apuracao");
+  const { data, error } = await db.rpc("apuracao_indicacao", { p_inicio: $("ind-ini").value, p_fim: $("ind-fim").value });
+  if (error) { el.innerHTML = `<p class="erro">${esc(error.message)}</p>`; return; }
+  dadosApuracao = data || [];
+  const total = dadosApuracao.reduce((t, r) => t + Number(r.desconto_valor || 0), 0);
+  el.innerHTML = `<div class="rolagem"><table class="tabela"><thead><tr><th>Parceiro</th><th>Contratos</th><th>Desconto</th><th>Mensalidade</th><th>Valor</th></tr></thead><tbody>
+    ${dadosApuracao.length ? dadosApuracao.map((r) => `<tr><td>${esc(r.parceiro)}</td><td>${r.contratos}</td><td>${r.desconto_pct}%</td><td>${brl(r.mensalidade_ativa)}</td><td>${brl(r.desconto_valor)}</td></tr>`).join("")
+      : '<tr><td colspan="5" class="sub">Nenhum contrato assinado pelo programa nesse período.</td></tr>'}
+    </tbody></table></div><p class="sub">Total de descontos a lançar nas próximas faturas: <b>${brl(total)}</b>.
+    ${dadosApuracao.length ? '<button type="button" class="fantasma" id="ind-exp-apur">Exportar</button>' : ""}</p>`;
+  const b = $("ind-exp-apur");
+  if (b) b.onclick = () => baixarCSV("desconto_parceiros", dadosApuracao.map((r) => ({ parceiro: r.parceiro, vendedor: r.vendedor, codigo: r.codigo,
+    contratos: r.contratos, desconto_pct: r.desconto_pct, mensalidade: Number(r.mensalidade_ativa), desconto_valor: Number(r.desconto_valor) })));
 }
 
 // ---------- Painel ----------
