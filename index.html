@@ -166,7 +166,7 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0500</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0600</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-blindagem" type="button">Blindagem <span id="n-blind"></span></button>
@@ -715,6 +715,7 @@ function blocoEditarNome(d) {
     <label>Nome que aparece no mapa <input id="nomeed-${i}" value="${esc(d.nome)}" placeholder="Ex.: Mobi Hamburgueria"></label>
     <label>WhatsApp / celular <input id="teled-${i}" inputmode="tel" value="${esc(d.telefone1 || "")}" placeholder="11 91234-5678"></label>
     <label>E-mail <input id="emed-${i}" type="email" value="${esc(d.email || "")}" placeholder="contato@restaurante.com.br"></label>
+    <label>Instagram <input id="iged-${i}" value="${esc(d.instagram ? "@" + d.instagram : "")}" placeholder="@perfil ou link do perfil"></label>
     <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-renomear="${esc(d.cnpj)}">Salvar dados</button>
     <p class="aviso" id="nomemsg-${i}"></p></details>`;
 }
@@ -737,6 +738,13 @@ async function renomearProspect(cnpj) {
     const { error } = await db.rpc("editar_nome_prospect", { p_cnpj: cnpj, p_nome: nome });
     if (error) { msg.textContent = "Não foi possível salvar o nome: " + error.message; return; }
     d.nome = d.cliente = nome;
+  }
+  const igTxt = document.getElementById("iged-" + i).value.trim(), ig = limparInstagram(igTxt);
+  if (igTxt && !ig) { msg.textContent = "Confira o Instagram: cole o @ ou o link do perfil."; return; }
+  if (ig && ig !== (d.instagram || "")) {
+    const { error } = await gravarInstagram(cnpj, ig);
+    if (error) { msg.textContent = "Não foi possível salvar o Instagram: " + error.message; return; }
+    d.instagram = ig;
   }
   const mudouTel = tel && tel !== d.telefone1, mudouEmail = email && email !== (d.email || "");
   if (mudouTel || mudouEmail) {
