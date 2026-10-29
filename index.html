@@ -166,7 +166,7 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0400</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0500</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-blindagem" type="button">Blindagem <span id="n-blind"></span></button>
@@ -388,7 +388,7 @@ function abrirApp() {
   $("btn-indicacoes").onclick = abrirIndicacoes;
   $("fechar-indicacoes").onclick = () => { $("folha-indicacoes").hidden = true; };
   $("exportar-indicacoes").onclick = () => baixarCSV("indicacoes", dadosIndicacoes.map((r) => ({
-    data: dataBR(r.criado_em), indicado: r.nome, estabelecimento: r.estabelecimento, cnpj: r.cnpj, cpf: r.cpf, whatsapp: r.whatsapp,
+    data: dataBR(r.criado_em), indicado: r.nome, estabelecimento: r.estabelecimento, cnpj: r.cnpj, cpf: r.cpf, whatsapp: r.whatsapp, email: r.email,
     status: ROTULO_IND[r.status], contrato_em: dataBR(r.contrato_em), indicado_por: parceiroDe(r), codigo: r.codigo })));
   $("lista-indicacoes").addEventListener("change", mudarIndicacao);
   $("lista-indicacoes").addEventListener("click", (e) => { if (e.target.closest("#ind-apurar")) apurarIndicacoes(); });
@@ -1327,6 +1327,7 @@ async function abrirIndicacoes() {
   const opcoes = (st) => Object.entries(ROTULO_IND).map(([k, v]) => `<option value="${k}"${k === st ? " selected" : ""}>${v}</option>`).join("");
   const cartao = (r) => `<div class="fu" style="border-left:4px solid #0a6b86"><div class="nome">${esc(r.estabelecimento || r.nome)}</div>
     <div class="sub">${esc(r.nome)} · CNPJ ${esc(r.cnpj)} · indicado por <b>${esc(parceiroDe(r))}</b> em ${dataBR(r.criado_em)}</div>
+    ${r.email ? `<div class="sub">E-mail para o contrato: <a href="mailto:${esc(r.email)}">${esc(r.email)}</a> · CPF ${esc(r.cpf)}</div>` : ""}
     <div class="acoes"><a href="https://wa.me/55${esc(r.whatsapp)}" target="_blank" rel="noopener">WhatsApp ${esc(r.whatsapp)}</a>
       <select data-ind="${r.id}" aria-label="Situação da indicação">${opcoes(r.status)}</select>
       ${r.status === "CONTRATO_ASSINADO" ? `<span class="sub">assinado em ${dataBR(r.contrato_em)}</span>` : ""}</div>

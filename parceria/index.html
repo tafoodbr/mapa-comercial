@@ -90,12 +90,29 @@ h2 { font-weight: 800; font-variation-settings: "wdth" 112; font-size: clamp(26p
 .passos b { display: block; font-size: 18px; }
 .passos span { color: var(--cinza); }
 
+/* Formulário: boas-vindas com o mascote X-10 */
+.boas-vindas { --creme: #fbf0da; background: var(--creme); color: #16232a; border-top: 1px solid var(--linha); padding: 56px 0 0; overflow: hidden; }
+.boas-vindas h2 { color: #123a6b; font-variation-settings: "wdth" 120; font-size: clamp(30px, 4.4vw, 46px); line-height: 1.02; }
+.boas-vindas .convite-form > p { font-size: 19px; color: #123a6b; max-width: 26em; }
+.boas-vindas .sub-convite { font-size: 16px !important; color: #4b5a62 !important; }
+.boas-vindas .vagas { color: #4b5a62; }
+.boas-vindas .form-area { align-items: end; }
+.convite-form { display: flex; flex-direction: column; }
+.mascote { display: block; width: min(100%, 360px); height: auto; margin: 18px auto 0 0; order: 99; }
+.boas-vindas form { margin-bottom: 56px; background: #fffaf0; border-color: #e6d6b5; color: #16232a; }
+.boas-vindas .estado { margin-bottom: 56px; background: #fffaf0; border-color: #e6d6b5; color: #16232a; }
+.boas-vindas input[type=text], .boas-vindas input[type=tel], .boas-vindas input[type=email] { background: #fff; border-color: #c8b48c; color: #16232a; }
+.boas-vindas label small, .boas-vindas .dica, .boas-vindas .aceite { color: #5b6870; }
+.boas-vindas .dica.erro, .boas-vindas .aviso-form.erro { color: #a8321e; }
+.boas-vindas .estado.ok h3 { color: #1f7a4a; }
+.boas-vindas .botao { background: #0a72b8; } .boas-vindas .botao:hover { background: #075a93; }
+
 /* Formulário */
 .form-area { display: grid; grid-template-columns: .9fr 1.1fr; gap: 48px; align-items: start; }
 form { background: var(--chapa); border: 1px solid var(--linha); border-radius: 10px; padding: 26px; }
 label { display: block; font-weight: 600; font-size: 15px; margin: 0 0 16px; }
 label small { font-weight: 400; color: var(--cinza); }
-input[type=text], input[type=tel] {
+input[type=text], input[type=tel], input[type=email] {
   display: block; width: 100%; margin-top: 6px; min-height: 50px; padding: 0 14px; font: inherit; font-size: 17px;
   color: var(--grafite); background: var(--aco); border: 1px solid var(--linha); border-radius: 6px;
 }
@@ -132,6 +149,8 @@ footer p { max-width: 60em; margin: 0 0 8px; }
   .passos { grid-template-columns: 1fr; gap: 20px; }
   .faixa { padding: 40px 0; } .solta { padding-top: 40px; padding-bottom: 40px; }
   form, .estado { padding: 20px; }
+  .boas-vindas { padding-top: 40px; }
+  .mascote { order: -1; width: 150px; margin: 0 auto 12px; }
 }
 </style>
 </head>
@@ -147,7 +166,7 @@ footer p { max-width: 60em; margin: 0 0 8px; }
       <h1>A gordura sai de molho. A sua equipe, não.</h1>
       <p class="lead">O Sistema de Limpeza RestoClean X-10 foi validado por mais de 6.250 estabelecimentos de alimentação. É o método mais eficiente, com resultado em economia de mão de obra, de tempo e de produtos de limpeza.</p>
       <p class="itens">No tanque: caixas plásticas, panelas, grelhas, filtros de coifa, pratos e travessas com manchas e demais utensílios.</p>
-      <a class="botao" href="#adesao">Quero receber a proposta</a>
+      <a class="botao" href="#adesao">Quero ser parceiro</a>
     </div>
     <svg class="tanque" viewBox="0 0 300 300" role="img" aria-label="Tanque de imersão com uma panela submersa soltando a gordura">
       <rect x="20" y="96" width="260" height="184" rx="14" fill="var(--chapa)" stroke="var(--linha)" stroke-width="3"/>
@@ -214,17 +233,19 @@ footer p { max-width: 60em; margin: 0 0 8px; }
     <h2>Como funciona daqui para frente</h2>
     <ol class="passos">
       <li><b>Você preenche seus dados</b><span>Leva um minuto. Os dados ficam só com a RestoClean.</span></li>
-      <li><b>A RestoClean chama você no WhatsApp</b><span>Para entender a sua cozinha e o volume operacional. Conte como é a sua operação: tipo, tamanho e necessidade.</span></li>
-      <li><b>Você recebe conteúdo e a proposta</b><span>Material para conhecer melhor o sistema e o modelo de equipamento indicado para a sua operação.</span></li>
+      <li><b>A RestoClean chama você no WhatsApp</b><span>Para entender a sua cozinha e o volume operacional e passar as condições. Conte como é a sua operação: tipo, tamanho e necessidade.</span></li>
+      <li><b>Você assina o contrato digital</b><span>O contrato chega no seu e-mail para assinar pelo celular, com o modelo de equipamento indicado para a sua operação.</span></li>
     </ol>
   </section>
 
-  <section class="faixa" id="adesao">
+  <section class="boas-vindas" id="adesao">
     <div class="coluna form-area">
-      <div>
-        <h2>Formulário de adesão</h2>
-        <p id="texto-adesao">Preencha para receber a proposta da RestoClean.</p>
+      <div class="convite-form">
+        <h2>Olá, seja bem-vindo ao universo RestoClean!</h2>
+        <p>Informe seus dados e os dados do seu negócio. Vamos criar uma parceria extraordinária.</p>
+        <p class="sub-convite" id="texto-adesao"></p>
         <p class="vagas" id="vagas"></p>
+        <img class="mascote" src="ilustracao-x10.webp" alt="" width="520" height="747" loading="lazy">
       </div>
 
       <div>
@@ -242,6 +263,9 @@ footer p { max-width: 60em; margin: 0 0 8px; }
           <label>CPF
             <input type="text" id="cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" required>
             <span class="dica" id="dica-cpf"></span></label>
+          <label>E-mail <small>(o contrato digital chega aqui)</small>
+            <input type="email" id="email" autocomplete="email" inputmode="email" required>
+            <span class="dica" id="dica-email"></span></label>
           <label>CNPJ do estabelecimento
             <input type="text" id="cnpj" inputmode="numeric" autocomplete="off" placeholder="00.000.000/0000-00" required>
             <span class="dica" id="dica-cnpj"></span></label>
@@ -251,15 +275,15 @@ footer p { max-width: 60em; margin: 0 0 8px; }
             <input type="tel" id="whats" inputmode="tel" autocomplete="tel" placeholder="(11) 91234-5678" required>
             <span class="dica" id="dica-whats"></span></label>
           <label class="aceite"><input type="checkbox" id="aceite" required>
-            <span>Autorizo a RestoClean a usar estes dados para me contatar e enviar a proposta comercial. Os dados não são compartilhados com terceiros.</span></label>
+            <span>Autorizo a RestoClean a usar estes dados para me contatar e preparar o contrato. Os dados não são compartilhados com terceiros.</span></label>
           <span class="dica" id="dica-aceite"></span>
-          <button class="botao" type="submit" id="enviar">Enviar adesão</button>
+          <button class="botao" type="submit" id="enviar">Quero ser parceiro</button>
           <p class="aviso-form" id="aviso" role="status" aria-live="polite"></p>
         </form>
 
         <div class="estado ok" id="estado-ok" hidden tabindex="-1">
-          <h3>Adesão enviada</h3>
-          <p>Recebemos os seus dados. A RestoClean vai chamar você no WhatsApp <b id="ok-whats"></b> para conversar sobre a proposta.</p>
+          <h3>Bem-vindo à RestoClean!</h3>
+          <p>Recebemos os seus dados. A RestoClean vai chamar você no WhatsApp <b id="ok-whats"></b> para passar as condições, e o contrato digital chega no seu e-mail.</p>
           <p id="ok-wa" hidden><a class="botao" id="ok-wa-link" target="_blank" rel="noopener">Falar agora no WhatsApp</a></p>
         </div>
       </div>
@@ -328,7 +352,7 @@ async function iniciar() {
   if (parceiro) {
     $("convite").innerHTML = "";
     $("convite").append("Convite de parceria de ", Object.assign(document.createElement("b"), { textContent: parceiro }), ".");
-    $("texto-adesao").textContent = `Preencha para receber a proposta da RestoClean. Ao fechar o contrato, ${parceiro} ganha desconto na mensalidade como agradecimento pela indicação.`;
+    $("texto-adesao").textContent = `Você chegou por indicação de ${parceiro}. Ao fechar o contrato, ${parceiro} ganha desconto na mensalidade como agradecimento.`;
     document.title = `${parceiro} indicou você · RestoClean`;
   }
   if (!info.aberto) return fechado("Vagas preenchidas", "As vagas desta rodada de parcerias foram preenchidas pela nossa capacidade de produção. Fale com quem indicou você para saber da próxima rodada.");
@@ -369,6 +393,7 @@ $("form").addEventListener("submit", async (e) => {
   const ok = [
     marcar("nome", nome.split(" ").length < 2 || nome.length < 5 ? "Escreva nome e sobrenome." : ""),
     marcar("cpf", cpfValido($("cpf").value) ? "" : "Confira o CPF: os números não batem."),
+    marcar("email", /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test($("email").value.trim()) ? "" : "Confira o e-mail."),
     marcar("cnpj", cnpjValido($("cnpj").value) ? "" : "Confira o CNPJ: os números não batem."),
     marcar("whats", [10, 11].includes(so($("whats").value).length) ? "" : "Digite o WhatsApp com DDD."),
   ].every(Boolean);
@@ -381,8 +406,9 @@ $("form").addEventListener("submit", async (e) => {
   const { error } = await db.rpc("registrar_indicacao", {
     p_codigo: codigo, p_nome: nome, p_cpf: so($("cpf").value), p_cnpj: so($("cnpj").value),
     p_whatsapp: so($("whats").value), p_estabelecimento: $("estab").value.trim() || null,
+    p_email: $("email").value.trim(),
   });
-  b.disabled = false; b.textContent = "Enviar adesão";
+  b.disabled = false; b.textContent = "Quero ser parceiro";
   if (error) {
     $("aviso").className = "aviso-form erro";
     $("aviso").textContent = error.message && !/fetch|network/i.test(error.message)
