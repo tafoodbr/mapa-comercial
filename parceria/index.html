@@ -81,9 +81,7 @@ h2 { font-weight: 800; font-variation-settings: "wdth" 112; font-size: clamp(26p
   overflow-x: auto; scroll-snap-type: x mandatory; padding: 8px max(20px, calc((100vw - 1020px) / 2)) 16px;
   scroll-padding-inline: max(20px, calc((100vw - 1020px) / 2)); scrollbar-width: thin;
 }
-@media (min-width: 1100px) {
-  .trilho { grid-auto-flow: row; grid-template-columns: repeat(4, 1fr); max-width: 1060px; margin: 0 auto; padding: 8px 20px 16px; overflow: visible; }
-}
+
 .trilho figure { margin: 0; scroll-snap-align: start; }
 .trilho iframe { width: 100%; aspect-ratio: 9 / 15; border: 0; border-radius: 10px; background: var(--espuma); display: block; }
 .passos { list-style: none; counter-reset: p; padding: 0; margin: 26px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
@@ -199,6 +197,8 @@ footer p { max-width: 60em; margin: 0 0 8px; }
       <p>Resultados reais em cozinhas que já usam a RestoClean.</p>
     </div>
     <div class="trilho" tabindex="0" aria-label="Vídeos da RestoClean">
+      <figure><iframe src="https://www.instagram.com/reel/DL58QVnMqdn/embed" title="Resultado da limpeza em uma hamburgueria" loading="lazy" allowfullscreen></iframe>
+        <figcaption><b>Resultado numa hamburgueria</b>Grelhas do broiler e filtros de coifa limpos no tanque.</figcaption></figure>
       <figure><iframe src="https://www.instagram.com/reel/C4jsUFfsSak/embed" title="Depoimento de cliente hamburgueria" loading="lazy" allowfullscreen></iframe>
         <figcaption><b>Depoimento</b>Uma hamburgueria conta como é a rotina com a RestoClean.</figcaption></figure>
       <figure><iframe src="https://www.instagram.com/reel/Cq8tpi-uM8m/embed" title="A facilidade da limpeza" loading="lazy" allowfullscreen></iframe>
