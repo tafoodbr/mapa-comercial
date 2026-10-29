@@ -13,18 +13,18 @@
 <style>
 :root {
   --aco: #e8eced; --chapa: #f7f9f9; --grafite: #16232a; --cinza: #51626a; --linha: #c9d3d6;
-  --imersao: #0a6b86; --imersao-escuro: #07506a; --espuma: #d5edf2; --ambar: #b8761b; --erro: #a8321e;
+  --imersao: #0a72b8; --imersao-escuro: #075a93; --espuma: #d6ecf8; --folha: #6aa317; --ambar: #b8761b; --erro: #a8321e;
   --ok: #1f7a4a;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --aco: #121b20; --chapa: #1a252b; --grafite: #e7eef0; --cinza: #9fb0b7; --linha: #2c3a41;
-    --imersao: #3fa7c4; --imersao-escuro: #6cc0d8; --espuma: #173640; --ambar: #d9a14a; --erro: #f08a74; --ok: #5ccf8f;
+    --imersao: #3aa9ec; --imersao-escuro: #74c3f2; --espuma: #12334a; --folha: #9fd34a; --ambar: #d9a14a; --erro: #f08a74; --ok: #5ccf8f;
   }
 }
 :root[data-theme="dark"] {
   --aco: #121b20; --chapa: #1a252b; --grafite: #e7eef0; --cinza: #9fb0b7; --linha: #2c3a41;
-  --imersao: #3fa7c4; --imersao-escuro: #6cc0d8; --espuma: #173640; --ambar: #d9a14a; --erro: #f08a74; --ok: #5ccf8f;
+  --imersao: #3aa9ec; --imersao-escuro: #74c3f2; --espuma: #12334a; --folha: #9fd34a; --ambar: #d9a14a; --erro: #f08a74; --ok: #5ccf8f;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -37,7 +37,7 @@ body {
 a { color: var(--imersao); }
 .coluna { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
 .marca { display: flex; align-items: center; gap: 10px; padding-top: 18px; padding-bottom: 18px; font-weight: 800; font-variation-settings: "wdth" 115; letter-spacing: .01em; font-size: 19px; }
-.marca svg { width: 30px; height: 30px; }
+.marca img { height: 46px; width: auto; display: block; }
 
 /* Hero: o convite em primeiro lugar, o tanque como imagem */
 .hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: 40px; align-items: center; padding-top: 28px; padding-bottom: 56px; }
@@ -56,6 +56,7 @@ h1 {
 .botao:hover { background: var(--imersao-escuro); }
 .botao:focus-visible, input:focus-visible, a:focus-visible { outline: 3px solid var(--ambar); outline-offset: 2px; }
 .botao[disabled] { opacity: .6; cursor: wait; }
+.itens { margin: -10px 0 26px; padding-left: 14px; border-left: 3px solid var(--folha); color: var(--cinza); max-width: 34em; }
 .tanque { width: 100%; max-width: 420px; justify-self: center; }
 
 /* Faixas de conteúdo */
@@ -71,6 +72,20 @@ h2 { font-weight: 800; font-variation-settings: "wdth" 112; font-size: clamp(26p
 .beneficios span { color: var(--cinza); }
 .video { width: 100%; max-width: 400px; aspect-ratio: 9 / 15; border: 0; border-radius: 10px; background: var(--espuma); display: block; justify-self: center; }
 
+.destaque { margin: 0; justify-self: center; width: 100%; max-width: 400px; }
+.destaque figcaption, .trilho figcaption { font-size: 15px; color: var(--cinza); margin-top: 10px; }
+.trilho figcaption b { display: block; color: var(--grafite); font-size: 17px; font-variation-settings: "wdth" 108; }
+.galeria { padding-bottom: 40px; }
+.trilho {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(280px, 320px); gap: 20px;
+  overflow-x: auto; scroll-snap-type: x mandatory; padding: 8px max(20px, calc((100vw - 1020px) / 2)) 16px;
+  scroll-padding-inline: max(20px, calc((100vw - 1020px) / 2)); scrollbar-width: thin;
+}
+@media (min-width: 1100px) {
+  .trilho { grid-auto-flow: row; grid-template-columns: repeat(4, 1fr); max-width: 1060px; margin: 0 auto; padding: 8px 20px 16px; overflow: visible; }
+}
+.trilho figure { margin: 0; scroll-snap-align: start; }
+.trilho iframe { width: 100%; aspect-ratio: 9 / 15; border: 0; border-radius: 10px; background: var(--espuma); display: block; }
 .passos { list-style: none; counter-reset: p; padding: 0; margin: 26px 0 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
 .passos li { counter-increment: p; border-top: 3px solid var(--imersao); padding-top: 14px; }
 .passos li::before { content: counter(p); display: block; font-weight: 800; font-variation-settings: "wdth" 125; font-size: 40px; line-height: 1; color: var(--imersao); margin-bottom: 8px; }
@@ -124,8 +139,7 @@ footer p { max-width: 60em; margin: 0 0 8px; }
 </head>
 <body>
 <header class="coluna marca">
-  <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="9" width="26" height="19" rx="3" fill="var(--imersao)"/><path d="M3 15c5 0 5-3 10-3s5 3 10 3 5-3 6-3v3c-1 0-1 3-6 3s-5-3-10-3-5 3-10 3z" fill="var(--espuma)"/><circle cx="12" cy="5" r="2" fill="var(--imersao)"/><circle cx="19" cy="3.5" r="1.5" fill="var(--imersao)"/></svg>
-  RestoClean
+  <img src="logo-restoclean.png" alt="RestoClean do Brasil" width="195" height="46">
 </header>
 
 <main>
@@ -133,7 +147,8 @@ footer p { max-width: 60em; margin: 0 0 8px; }
     <div>
       <p class="convite" id="convite">Você recebeu um convite de parceria.</p>
       <h1>A gordura sai de molho. A sua equipe, não.</h1>
-      <p class="lead">O Sistema de Limpeza RestoClean X-10 limpa por imersão: panelas, grelhas, filtros e utensílios ficam submersos e a gordura se solta no tanque, com muito menos esfregação. É o aliado das cozinhas profissionais no combate à gordura.</p>
+      <p class="lead">O Sistema de Limpeza RestoClean X-10 foi validado por mais de 6.250 estabelecimentos de alimentação. É o método mais eficiente, com resultado em economia de mão de obra, de tempo e de produtos de limpeza.</p>
+      <p class="itens">No tanque: caixas plásticas, panelas, grelhas, filtros de coifa, pratos e travessas com manchas e demais utensílios.</p>
       <a class="botao" href="#adesao">Quero receber a proposta</a>
     </div>
     <svg class="tanque" viewBox="0 0 300 300" role="img" aria-label="Tanque de imersão com uma panela submersa soltando a gordura">
@@ -161,17 +176,37 @@ footer p { max-width: 60em; margin: 0 0 8px; }
     <div class="coluna dupla">
       <div>
         <h2>O que muda na limpeza da cozinha</h2>
-        <p>A limpeza pesada deixa de depender de horas de esfregação no fim do turno.</p>
+        <p>Por imersão, a gordura se solta no tanque com muito menos esfregação. A limpeza pesada deixa de depender de horas de trabalho no fim do turno.</p>
         <ul class="beneficios">
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="7" r="3.5"/><path d="M5 20c.8-4 3.6-6 7-6s6.2 2 7 6"/></svg>
             <div><b>Economia de mão de obra</b><span>A equipe deixa as peças no tanque e segue com o serviço.</span></div></li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg>
-            <div><b>Operação mais eficiente</b><span>Utensílios limpos e prontos com menos espera entre um turno e outro.</span></div></li>
+            <div><b>Economia de tempo</b><span>Utensílios limpos e prontos com menos espera entre um turno e outro.</span></div></li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3h8l-1 4h-6zM7 7h10l1 14H6z"/><path d="M10 12h4"/></svg>
             <div><b>Economia de produtos de limpeza</b><span>Menos desengraxante gasto em cada peça.</span></div></li>
         </ul>
       </div>
-      <iframe class="video" src="https://www.instagram.com/reel/DbqS_tzRrYa/embed" title="Vídeo da limpeza por imersão RestoClean" loading="lazy" allowfullscreen></iframe>
+      <figure class="destaque">
+        <iframe class="video" src="https://www.instagram.com/reel/CoVjWL9jqqs/embed" title="O conceito do Sistema de Limpeza RestoClean X-10" loading="lazy" allowfullscreen></iframe>
+        <figcaption>O conceito do Sistema RestoClean X-10, explicado em desenho.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="solta galeria">
+    <div class="coluna">
+      <h2>Veja na prática</h2>
+      <p>Resultados reais em cozinhas que já usam a RestoClean.</p>
+    </div>
+    <div class="trilho" tabindex="0" aria-label="Vídeos da RestoClean">
+      <figure><iframe src="https://www.instagram.com/reel/C4jsUFfsSak/embed" title="Depoimento de cliente hamburgueria" loading="lazy" allowfullscreen></iframe>
+        <figcaption><b>Depoimento</b>Uma hamburgueria conta como é a rotina com a RestoClean.</figcaption></figure>
+      <figure><iframe src="https://www.instagram.com/reel/Cq8tpi-uM8m/embed" title="A facilidade da limpeza" loading="lazy" allowfullscreen></iframe>
+        <figcaption><b>Facilidade</b>Como fica simples limpar no dia a dia.</figcaption></figure>
+      <figure><iframe src="https://www.instagram.com/p/CpLpvzLrM29/embed" title="Limpeza na prática" loading="lazy" allowfullscreen></iframe>
+        <figcaption><b>Limpeza na prática</b>O antes e depois das peças no tanque.</figcaption></figure>
+      <figure><iframe src="https://www.instagram.com/reel/Co9cc_rjRT5/embed" title="Pequenas empresas, grandes negócios" loading="lazy" allowfullscreen></iframe>
+        <figcaption><b>Pequenas empresas, grandes negócios</b>A RestoClean também cabe em operações menores.</figcaption></figure>
     </div>
   </section>
 
@@ -179,8 +214,8 @@ footer p { max-width: 60em; margin: 0 0 8px; }
     <h2>Como funciona daqui para frente</h2>
     <ol class="passos">
       <li><b>Você preenche seus dados</b><span>Leva um minuto. Os dados ficam só com a RestoClean.</span></li>
-      <li><b>A RestoClean chama você no WhatsApp</b><span>Para entender a sua cozinha e o volume de louça.</span></li>
-      <li><b>Você recebe a proposta</b><span>Com o modelo de equipamento indicado para a sua operação.</span></li>
+      <li><b>A RestoClean chama você no WhatsApp</b><span>Para entender a sua cozinha e o volume operacional. Conte como é a sua operação: tipo, tamanho e necessidade.</span></li>
+      <li><b>Você recebe conteúdo e a proposta</b><span>Material para conhecer melhor o sistema e o modelo de equipamento indicado para a sua operação.</span></li>
     </ol>
   </section>
 
