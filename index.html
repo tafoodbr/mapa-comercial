@@ -49,7 +49,8 @@ input { padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; b
 .erro { color: #c0392b; font-size: 14px; margin: 0; }
 
 /* App */
-#app { height: 100%; display: grid; grid-template-rows: auto 1fr auto; }
+#app { height: 100%; display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: minmax(0, 1fr); }
+.painel > * { min-width: 0; }
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface); border-bottom: 1px solid var(--line);
   padding: calc(8px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); }
 header h1 { font: 700 20px/1 var(--display); margin: 0; flex: 1; }
@@ -111,7 +112,16 @@ select.chip { padding-right: 8px; }
 .ficha-topo { display: flex; justify-content: flex-end; position: sticky; top: calc(-12px - env(safe-area-inset-top)); background: var(--surface); padding: 4px 0 6px; z-index: 1; }
 .ficha .popup p { margin: 4px 0; }
 .ficha .popup h3 { font-size: 20px; margin: 8px 0 4px; }
+.acoes-topo { display: contents; }
 @media (max-width: 700px) {
+  /* Celular: menos linhas acima e abaixo do mapa. Botões e filtros viram faixas que deslizam para o lado. */
+  .acoes-topo { display: flex; gap: 6px; flex: 1 1 100%; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .acoes-topo::-webkit-scrollbar, .painel > .linha::-webkit-scrollbar { display: none; }
+  .acoes-topo button { flex: none; white-space: nowrap; }
+  .painel { grid-template-columns: minmax(0, 1fr); }
+  .painel > .linha { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+  header > * { min-width: 0; }
+  .painel > .linha > * { flex: none; white-space: nowrap; }
   .ficha { top: auto; left: 0; width: 100%; max-height: 72vh; border-left: 0; border-top: 1px solid var(--line);
     border-radius: 14px 14px 0 0; box-shadow: 0 -8px 24px rgba(0,0,0,.18);
     padding-left: max(16px, env(safe-area-inset-left)); }
@@ -166,16 +176,19 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v29.10-0600</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v31.10-2100</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
+    <nav class="acoes-topo" aria-label="Telas">
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
     <button class="fantasma" id="btn-blindagem" type="button">Blindagem <span id="n-blind"></span></button>
     <button class="fantasma" id="btn-indicacoes" type="button">Indicações <span id="n-ind"></span></button>
+    <button class="fantasma" id="btn-visitas" type="button">Visitas</button>
     <button class="fantasma" id="btn-painel" type="button">Painel</button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
     <button class="fantasma" id="btn-sair" type="button">Sair</button>
+    </nav>
     <div class="busca">
-      <input id="busca" type="search" placeholder="Buscar nome, CNPJ ou @instagram" autocomplete="off" aria-label="Buscar cliente ou prospect">
+      <input id="busca" type="search" placeholder="Buscar nome, razão social, rua, CEP, CNPJ ou @instagram" autocomplete="off" aria-label="Buscar cliente ou prospect">
       <ul id="resultados" hidden></ul>
     </div>
   </header>
@@ -250,6 +263,17 @@ select.chip { padding-right: 8px; }
   <div class="bloco" id="lista-indicacoes"><p class="sub">Carregando…</p></div>
 </section>
 
+<section class="folha" id="folha-visitas" hidden>
+  <div class="folha-topo"><h2>Visitas</h2>
+    <button class="fantasma" type="button" id="exportar-visitas">Exportar</button>
+    <button class="fantasma" type="button" id="fechar-visitas">Fechar</button></div>
+  <div class="duas" style="align-items:end">
+    <label>De <input type="date" id="vis-ini"></label><label>Até <input type="date" id="vis-fim"></label></div>
+  <label>Vendedor <select id="vis-vend" class="chip" style="width:100%"><option value="">Toda a equipe</option></select></label>
+  <button type="button" class="fantasma" id="vis-atualizar" style="width:100%;margin:6px 0 10px">Atualizar</button>
+  <div class="bloco" id="lista-visitas"><p class="sub">Carregando…</p></div>
+</section>
+
 <section class="folha" id="folha-painel" hidden>
   <div class="folha-topo"><h2>Painel</h2>
     <select class="chip" id="painel-dias" aria-label="Período"><option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="365">Último ano</option></select>
@@ -259,6 +283,7 @@ select.chip { padding-right: 8px; }
 
 <section class="folha" id="folha-follow" hidden>
   <div class="folha-topo"><h2>Follow-up</h2><button class="fantasma" type="button" id="fechar-follow">Fechar</button></div>
+  <input id="fu-busca" type="search" placeholder="Buscar no Follow-up: nome, CNPJ, bairro, telefone, anotação…" autocomplete="off" aria-label="Buscar no Follow-up" style="width:100%;margin-bottom:10px">
   <div class="bloco" id="lista-follow"><p class="sub">Carregando…</p></div>
 </section>
 
@@ -332,10 +357,15 @@ function telWhats(t) {
 const pareceFixo = (d) => d.length === 10 && !/^\d{2}9/.test(d);
 const emBlindagem = (d) => {
   const b = d.tipo === "LOCAL" && d.status_local === "ATIVO" ? blindagem.get(d.chave_local) : null;
-  return b && (["VENCIDO", "VENCE_90"].includes(b.situacao) || ABERTOS.includes(b.oportunidade_status)) ? b : null;
+  if (!b || ["GANHO", "PERDIDO"].includes(b.oportunidade_status)) return null;   // blindagem encerrada volta ao verde
+  return ["VENCIDO", "VENCE_90"].includes(b.situacao) || ABERTOS.includes(b.oportunidade_status) ? b : null;
 };
-const grupo = (d) => emBlindagem(d) ? "BLINDAGEM" : d.tipo === "PROSPECT" ? (d.oportunidade_status ? "OPORTUNIDADE" : "PROSPECT")
-  : (d.oportunidade_status && !["GANHO", "PERDIDO"].includes(d.oportunidade_status) ? "REATIVACAO" : d.status_local);
+// Oportunidade ganha (prospect novo ou reativação) já aparece verde, como cliente ativo,
+// até a próxima atualização da base trazer o contrato.
+const grupo = (d) => emBlindagem(d) ? "BLINDAGEM"
+  : d.oportunidade_status === "GANHO" ? "ATIVO"
+  : d.tipo === "PROSPECT" ? (d.oportunidade_status && d.oportunidade_status !== "PERDIDO" ? "OPORTUNIDADE" : "PROSPECT")
+  : (d.oportunidade_status && d.oportunidade_status !== "PERDIDO" ? "REATIVACAO" : d.status_local);
 // Chave única de cada ponto no funil: CNPJ (prospect) ou "L:" + chave do endereço (cliente cancelado).
 const chaveDe = (d) => d.tipo === "LOCAL" ? "L:" + d.chave_local : d.tipo === "BLIND" ? "B:" + d.chave_local : d.cnpj;
 const idk = (k) => String(k).replace(/[^A-Za-z0-9_-]/g, "_");
@@ -379,13 +409,28 @@ function abrirApp() {
     maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   }).addTo(mapa);
   camada = L.layerGroup().addTo(mapa);
-  mapa.on("click", (e) => modoNovo ? escolherPonto(e.latlng.lat, e.latlng.lng) : (estado.carteira ? null : buscar(e.latlng.lat, e.latlng.lng, false)));
+  mapa.on("click", tocarMapa);
+  // O mapa muda de tamanho (modo Dividido, ficha aberta, rotação do celular): o Leaflet precisa saber,
+  // senão centraliza errado e os toques caem fora dos pontos.
+  if (window.ResizeObserver) new ResizeObserver(() => mapa.invalidateSize()).observe($("mapa"));
   montarNovoEFollow();
   montarBusca();
   montarModos();
   $("btn-painel").onclick = abrirPainel;
   $("btn-blindagem").onclick = abrirBlindagem;
   $("btn-indicacoes").onclick = abrirIndicacoes;
+  $("btn-visitas").onclick = abrirVisitas;
+  $("fechar-visitas").onclick = () => { $("folha-visitas").hidden = true; };
+  $("vis-atualizar").onclick = carregarVisitas;
+  $("exportar-visitas").onclick = () => baixarCSV("visitas", dadosVisitas.map((v) => ({
+    data: dataBR(v.data), hora: horaBR(v.hora), vendedor: v.vendedor, ponto: v.ponto, bairro: v.bairro, tipo: ROTULO_VISITA[v.tipo] || v.tipo,
+    resultado: v.resultado, observacao: v.observacao, distancia_m: v.distancia_m, precisao_gps_m: v.precisao_m,
+    cep5: v.cep5, regiao_de: v.regiao_de, na_propria_regiao: v.na_regiao == null ? "" : v.na_regiao ? "sim" : "não",
+    latitude: v.latitude, longitude: v.longitude })));
+  $("lista-visitas").addEventListener("click", (e) => {
+    if (e.target.closest("#vis-mapa")) verVisitasNoMapa();
+    if (e.target.closest("#vis-tirar")) tirarVisitasDoMapa();
+  });
   $("fechar-indicacoes").onclick = () => { $("folha-indicacoes").hidden = true; };
   $("exportar-indicacoes").onclick = () => baixarCSV("indicacoes", dadosIndicacoes.map((r) => ({
     data: dataBR(r.criado_em), indicado: r.nome, estabelecimento: r.estabelecimento, cnpj: r.cnpj, cpf: r.cpf, whatsapp: r.whatsapp, email: r.email,
@@ -467,6 +512,24 @@ async function buscar(lat, lon, ehVoce) {
   desenhar();
 }
 
+// Pontos desenhados em canvas: mais rápido com centenas de pontos e com área de toque maior que o círculo.
+const RENDER_PONTOS = L.canvas({ padding: 0.5, tolerance: 10 });
+// Toque no mapa: se caiu perto de um ponto (até 28 px), abre esse ponto; com a ficha aberta, o primeiro
+// toque só fecha a ficha; senão, busca ao redor do lugar tocado.
+function tocarMapa(e) {
+  if (modoNovo) return escolherPonto(e.latlng.lat, e.latlng.lng);
+  const toque = mapa.latLngToContainerPoint(e.latlng);
+  let perto = null, menor = 28;
+  for (const d of visiveis) {
+    if (!d._m) continue;
+    const dist = toque.distanceTo(mapa.latLngToContainerPoint([d.latitude, d.longitude]));
+    if (dist < menor) { menor = dist; perto = d; }
+  }
+  if (perto) return abrirFicha(perto);
+  if (!$("ficha").hidden) return fecharFicha();
+  if (!estado.carteira) buscar(e.latlng.lat, e.latlng.lng, false);
+}
+
 function desenhar() {
   camada.clearLayers();
   visiveis = estado.dados.filter((d) => estado.filtros.has(grupo(d))
@@ -489,7 +552,7 @@ function desenhar() {
     const s = STATUS[grupo(d)] || STATUS.OUTROS;
     const ehP = d.tipo === "PROSPECT";
     d._m = L.circleMarker([d.latitude, d.longitude], {
-      radius: ehP ? 6 : 7, color: "#fff", weight: 2, fillColor: s.hex, fillOpacity: 0.95, bubblingMouseEvents: false,
+      renderer: RENDER_PONTOS, radius: ehP ? 7 : 8, color: "#fff", weight: 2, fillColor: s.hex, fillOpacity: 0.95, bubblingMouseEvents: false,
     }).on("click", () => abrirFicha(d)).addTo(camada);
     const sub = ehP
       ? `${d.anos_de_abertura === 0 ? "<b>NOVO</b> · " : ""}${esc(d.segmento)} · ${d.nota == null ? "cadastrado em campo" : "nota " + d.nota}${d.expansao_rede ? " · rede de cliente" : ""} · ${esc(d.bairro)}`
@@ -534,6 +597,7 @@ function abrirFicha(d) {
   const bl = d.tipo === "LOCAL" ? blindagem.get(d.chave_local) : null;
   if (bl && ABERTOS.includes(bl.oportunidade_status)) carregarAnotacoes("B:" + d.chave_local);
   carregarProva(d);
+  carregarRegiao(d);
   if (marcaSel) marcaSel.remove();
   marcaSel = L.circleMarker([d.latitude, d.longitude], { radius: 14, color: s.hex, weight: 3, fill: false, interactive: false }).addTo(mapa);
 }
@@ -688,7 +752,7 @@ function popupLocal(d, s) {
     ? `Mensalidade ativa: <b>${brl(d.mensalidade_ativa)}</b>`
     : `Última mensalidade: <b>${brl(d.mensalidade_ultimo_contrato)}</b>`;
   const rota = `https://www.google.com/maps/dir/?api=1&destination=${d.latitude},${d.longitude}`;
-  return `<div class="popup"><span class="selo" style="background:${s.hex}">${s.nome}</span>
+  return `<div class="popup"><span class="selo" style="background:${s.hex}">${d.oportunidade_status === "GANHO" && d.status_local !== "ATIVO" ? "Reativado (ganho)" : s.nome}</span>
     <h3>${esc(d.cliente)}</h3>
     <p>${esc(d.endereco)} · ${esc(d.bairro)}, ${esc(d.cidade)}</p>
     <p>${valor} · Modelo: ${esc(d.modelo || "—")}</p>
@@ -702,6 +766,7 @@ function popupLocal(d, s) {
     ${PODE_REATIVAR.includes(d.status_local) || d.oportunidade_status ? blocoFunil(d, "Ativar reativação", [d.contato], "") : ""}
     ${blocoBlindagem(d)}
     ${blocoParceria(d)}
+    ${blocoVisita(d)}
     ${blocoSituacao(d)}</div>`;
 }
 
@@ -769,7 +834,7 @@ function popupProspect(d, s) {
   const tel = [d.telefone1, d.telefone2].filter(Boolean).map(esc).join(" · ") || "—";
   const rota = `https://www.google.com/maps/dir/?api=1&destination=${d.latitude},${d.longitude}`;
   const funil = blocoFunil(d, "Ativar prospecção", [d.telefone1, d.telefone2], d.email);
-  return `<div class="popup"><span class="selo" style="background:${s.hex}">${s.nome}</span> <span class="nota">${d.nota == null ? "Campo" : "Nota " + d.nota}</span>
+  return `<div class="popup"><span class="selo" style="background:${s.hex}">${d.oportunidade_status === "GANHO" ? "Cliente novo (ganho)" : s.nome}</span> <span class="nota">${d.nota == null ? "Campo" : "Nota " + d.nota}</span>
     <h3>${esc(d.nome)}</h3>
     ${d.razao_social && d.razao_social !== d.nome ? `<p class="sub">${esc(d.razao_social)}</p>` : ""}
     <p>${d.anos_de_abertura === 0 ? '<span class="selo" style="background:#1f8a4c">Aberto há menos de 1 ano</span> ' : ""}${esc(d.segmento)}${d.expansao_rede ? " · <b>outra unidade de um cliente</b>" : ""}</p>
@@ -783,6 +848,7 @@ function popupProspect(d, s) {
     <p><a href="${rota}" target="_blank" rel="noopener">Abrir rota</a> · ${km(d.distancia_m)} daqui</p>
     ${funil}
     ${blocoEditarNome(d)}
+    ${blocoVisita(d)}
     ${blocoSituacao(d)}</div>`;
 }
 
@@ -828,6 +894,7 @@ async function ativarPeloBotao(e) {
   if (e.target.closest("[data-anotar]")) return anotar(e.target.closest("[data-anotar]"));
   if (e.target.closest("[data-venc]")) return salvarVencimento(e.target.closest("[data-venc]"));
   if (e.target.closest("[data-renomear]")) return renomearProspect(e.target.closest("[data-renomear]").dataset.renomear);
+  if (e.target.closest("[data-visita]")) return registrarVisita(e.target.closest("[data-visita]").dataset.visita);
   if (e.target.closest("[data-parceria]")) return gerarParceria(e.target.closest("[data-parceria]").dataset.parceria);
   if (e.target.closest("[data-docusign]")) return pedirEnvelope(e.target.closest("[data-docusign]").dataset.docusign);
   if (e.target.closest("[data-bl-mapa]")) return verBlindagemNoMapa(e.target.closest("[data-bl-mapa]").dataset.blMapa);
@@ -953,6 +1020,8 @@ function montarNovoEFollow() {
   $("novo-cnpj").addEventListener("input", buscarCnpj);
   $("btn-follow").onclick = abrirFollow;
   $("fechar-follow").onclick = () => { $("folha-follow").hidden = true; };
+  let tempoFu = null;
+  $("fu-busca").addEventListener("input", () => { clearTimeout(tempoFu); tempoFu = setTimeout(mostrarFollow, 200); });
   $("lista-follow").addEventListener("click", acaoFollow);
   $("lista-follow").addEventListener("change", mudarStatusFollow);
 }
@@ -1147,7 +1216,9 @@ async function pesquisar(t) {
     : resultadosBusca.length ? resultadosBusca.map((r, i) => r.tipo === "VENDEDOR"
       ? `<li data-r="${i}" tabindex="0"><span class="ponto" style="background:var(--fg)"></span><div><div class="nome">Vendedor · ${esc(r.vendedor)}</div><div class="sub">${r.ativos} ativos (${brl(r.mensalidade_ativa)}/mês) · ${r.cancelados} cancelados · ${r.em_reativacao} em reativação</div></div></li>`
       : `<li data-r="${i}" tabindex="0"><span class="ponto" style="background:${cor(r)}"></span><div><div class="nome">${esc(r.nome)}</div><div class="sub">${esc(rotulo(r))} · ${esc(r.endereco)} · ${esc(r.bairro)}, ${esc(r.cidade)}</div></div></li>`).join("")
-    : `<li class="sub" style="display:block">Nada encontrado com "${esc(t)}".</li>`;
+    : `<li class="sub" style="display:block">Nada encontrado com "${esc(t)}".
+        <a href="https://www.google.com/search?q=${encodeURIComponent(t + " cnpj")}" target="_blank" rel="noopener">Procurar o CNPJ no Google</a>
+        e depois buscar aqui pelo CNPJ ou pela rua.</li>`;
   $("resultados").hidden = false;
 }
 
@@ -1219,7 +1290,7 @@ async function carregarBlindagem() {
   const { data, error } = await db.rpc("blindagem_lista");
   blindagemErro = error;
   blindagem = new Map((data || []).map((r) => [r.chave_local, r]));
-  const n = [...blindagem.values()].filter((b) => ["VENCIDO", "VENCE_90"].includes(b.situacao) && !ABERTOS.includes(b.oportunidade_status)).length;
+  const n = [...blindagem.values()].filter((b) => ["VENCIDO", "VENCE_90"].includes(b.situacao) && !b.oportunidade_status).length;
   $("n-blind").textContent = n ? `· ${n}` : "";
   if (camada) desenhar();
   if (!$("folha-blindagem").hidden) abrirBlindagem();
@@ -1270,10 +1341,11 @@ function abrirBlindagem() {
   if (blindagemErro) { $("lista-blindagem").innerHTML = `<p class="erro">Não foi possível carregar: ${esc(blindagemErro.message)}. Falta rodar o SQL da blindagem ou importar os contratos?</p>`; return; }
   const todos = [...blindagem.values()];
   const andamento = todos.filter((b) => ABERTOS.includes(b.oportunidade_status));
-  const livres = todos.filter((b) => !ABERTOS.includes(b.oportunidade_status));
+  const livres = todos.filter((b) => !b.oportunidade_status);
+  const naoRenovou = todos.filter((b) => b.oportunidade_status === "PERDIDO");
   const vencidos = livres.filter((b) => b.situacao === "VENCIDO");
   const vence90 = livres.filter((b) => b.situacao === "VENCE_90");
-  const vigentes = livres.filter((b) => b.situacao === "VIGENTE");
+  const vigentes = todos.filter((b) => b.situacao === "VIGENTE" && !ABERTOS.includes(b.oportunidade_status) && b.oportunidade_status !== "PERDIDO");
   const disp = [...vencidos, ...vence90];
   const mens = disp.reduce((t, b) => t + Number(b.mensalidade_ativa || 0), 0);
   const cartao = (b) => `<div class="fu" style="border-left:4px solid #c2185b"><div class="nome">${esc(b.cliente)}</div>
@@ -1286,7 +1358,7 @@ function abrirBlindagem() {
       <div class="kpi"><span>Mensalidade protegida</span><b style="font-size:20px">${brl(mens)}</b><em>por mês</em></div>
       <div class="kpi"><span>Comissão potencial</span><b style="font-size:20px">${brl(disp.length * COMISSAO_BLINDAGEM)}</b><em>R$ ${COMISSAO_BLINDAGEM} por contrato</em></div>
       <div class="kpi"><span>Em andamento</span><b>${andamento.length}</b></div></div>
-    ${grupo("Em andamento", andamento)}${grupo("Contrato vencido", vencidos)}${grupo("Vence em até 90 dias", vence90)}
+    ${grupo("Em andamento", andamento)}${grupo("Contrato vencido", vencidos)}${grupo("Vence em até 90 dias", vence90)}${grupo("Não renovou (perdida)", naoRenovou)}
     <h3>Vigentes · ${vigentes.length}</h3><p class="sub">Contratos ainda no prazo. Aparecem aqui quando faltarem 90 dias. A lista completa sai no Exportar.</p>
     <p class="sub">Vencimento estimado = assinatura no DocuSign + 24 meses, até alguém salvar a data real na ficha. A comissão potencial é um teto, não uma previsão.</p>`;
 }
@@ -1381,6 +1453,145 @@ async function apurarIndicacoes() {
     contratos: r.contratos, desconto_pct: r.desconto_pct, mensalidade: Number(r.mensalidade_ativa), desconto_valor: Number(r.desconto_valor) })));
 }
 
+// ---------- Região (CEP5) e visitas com localização ----------
+const ROTULO_VISITA = { PROSPECCAO: "Prospecção", REATIVACAO: "Reativação", BLINDAGEM: "Blindagem", RELACIONAMENTO: "Relacionamento",
+  TREINAMENTO: "Treinamento", TROCA: "Troca", OUTRO: "Outro" };
+const RESULTADOS_VISITA = ["Falei com o responsável", "Responsável ausente", "Fechado no horário", "Agendei retorno", "Ponto não existe mais", "Outro"];
+const LONGE_M = 300;   // check-in a mais de 300 m do ponto aparece como "longe do ponto"
+const horaBR = (t) => t ? new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+
+function blocoVisita(d) {
+  const k = chaveDe(d), i = idk(k);
+  const tipo = d.tipo === "PROSPECT" ? "PROSPECCAO" : emBlindagem(d) ? "BLINDAGEM" : d.status_local === "ATIVO" ? "RELACIONAMENTO" : "REATIVACAO";
+  return `<p class="sub" id="reg-${i}" style="margin-top:10px">Região: carregando…</p>
+    <details class="fu" style="margin-top:6px;border-left:4px solid #14336e"><summary><b>Registrar visita</b></summary>
+    <div class="duas" style="margin-top:6px"><label>Tipo <select id="vtipo-${i}">${Object.entries(ROTULO_VISITA).map(([v, r]) => `<option value="${v}"${v === tipo ? " selected" : ""}>${r}</option>`).join("")}</select></label>
+      <label>Resultado <select id="vres-${i}">${RESULTADOS_VISITA.map((r) => `<option>${r}</option>`).join("")}</select></label></div>
+    <textarea id="vobs-${i}" rows="2" placeholder="Observação da visita (opcional)"></textarea>
+    <button type="button" class="primario" style="width:100%;margin-top:6px" data-visita="${esc(k)}">Registrar visita aqui</button>
+    <p class="sub">Usa a sua localização neste momento para comprovar a visita.</p>
+    <p class="aviso" id="vmsg-${i}"></p></details>`;
+}
+
+async function carregarRegiao(d) {
+  const k = chaveDe(d), el = document.getElementById("reg-" + idk(k)); if (!el) return;
+  const { data, error } = await db.rpc("regiao_ponto", d.tipo === "PROSPECT" ? { p_cnpj: d.cnpj } : { p_chave_local: d.chave_local });
+  if (error) { el.textContent = "Região indisponível (falta rodar o SQL das melhorias de 31/10)."; return; }
+  const r = (data || [])[0];
+  el.innerHTML = !r || !r.cep5 ? "Região: CEP não informado."
+    : `Região CEP ${esc(r.cep5)}: <b>${esc(r.vendedor || "sem vendedor definido")}</b>${r.origem === "SUGERIDA" ? " (sugerida pela carteira)" : ""}`;
+}
+
+function posicaoAtual() {
+  return new Promise((ok, falha) => {
+    if (!navigator.geolocation) return falha(new Error("Este navegador não informa a localização."));
+    navigator.geolocation.getCurrentPosition(ok, falha, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
+}
+
+async function registrarVisita(k) {
+  const d = acharPorChave(k) || {}, i = idk(k), msg = document.getElementById("vmsg-" + i);
+  const b = document.querySelector(`[data-visita="${CSS.escape(k)}"]`);
+  b.disabled = true; msg.textContent = "Pegando a sua localização…";
+  let pos;
+  try { pos = await posicaoAtual(); }
+  catch (e) {
+    b.disabled = false;
+    msg.textContent = e.code === 1 ? "Localização bloqueada. Libere a localização para este site nos ajustes do navegador e tente de novo."
+      : "Não consegui pegar a localização. Tente de novo em um lugar aberto.";
+    return;
+  }
+  const [col, val] = alvo(k);
+  const { data: dist, error } = await db.rpc("registrar_visita", {
+    p_chave_local: col === "chave_local" ? val : null, p_cnpj: col === "cnpj" ? val : null,
+    p_tipo: document.getElementById("vtipo-" + i).value, p_resultado: document.getElementById("vres-" + i).value,
+    p_observacao: document.getElementById("vobs-" + i).value, p_lat: pos.coords.latitude, p_lon: pos.coords.longitude,
+    p_precisao: Math.round(pos.coords.accuracy || 0),
+  });
+  b.disabled = false;
+  if (error) { msg.textContent = "Não foi possível registrar: " + error.message + " (falta rodar o SQL das melhorias de 31/10?)"; return; }
+  document.getElementById("vobs-" + i).value = "";
+  msg.innerHTML = `Visita registrada às ${horaBR(new Date())}` + (dist == null ? "." : dist <= LONGE_M ? `, a ${dist} m do ponto.`
+    : `. <b>Você está a ${km(dist)} do ponto</b>: confira se o endereço no mapa está certo.`);
+}
+
+let dadosVisitas = [], camadaVisitas = null, equipeCarregada = false;
+async function abrirVisitas() {
+  $("folha-visitas").hidden = false;
+  const hoje = hojeISO();
+  if (!$("vis-ini").value) { $("vis-ini").value = hoje; $("vis-fim").value = hoje; }
+  if (!equipeCarregada) {
+    const { data } = await db.rpc("equipe_nomes");
+    if (data && data.length) {
+      $("vis-vend").innerHTML = '<option value="">Toda a equipe</option>' + data.map((e) => `<option>${esc(e.nome)}</option>`).join("");
+      equipeCarregada = true;
+    } else $("vis-vend").closest("label").hidden = true;   // vendedor vê só as próprias visitas
+  }
+  carregarVisitas();
+}
+
+async function carregarVisitas() {
+  const el = $("lista-visitas");
+  el.innerHTML = '<p class="sub">Carregando…</p>';
+  const { data, error } = await db.rpc("visitas_periodo", { p_inicio: $("vis-ini").value, p_fim: $("vis-fim").value || $("vis-ini").value,
+    p_vendedor: $("vis-vend").value || null });
+  if (error) { el.innerHTML = `<p class="erro">Não foi possível carregar: ${esc(error.message)}. Falta rodar o SQL das melhorias de 31/10?</p>`; return; }
+  dadosVisitas = data || [];
+  if (!dadosVisitas.length) { el.innerHTML = '<p class="sub">Nenhuma visita registrada nesse período. As visitas entram pelo botão "Registrar visita" na ficha de cada ponto.</p>'; return; }
+  const noPonto = dadosVisitas.filter((v) => v.distancia_m != null && v.distancia_m <= LONGE_M).length;
+  const comRegiao = dadosVisitas.filter((v) => v.na_regiao != null);
+  const naRegiao = comRegiao.filter((v) => v.na_regiao).length;
+  const pct = (a, b) => b ? Math.round(100 * a / b) + "%" : "—";
+  const porVend = {};
+  for (const v of dadosVisitas) {
+    const r = porVend[v.vendedor] ||= { n: 0, ponto: 0, regiao: 0, comReg: 0, ini: v.hora, fim: v.hora };
+    r.n++; if (v.distancia_m != null && v.distancia_m <= LONGE_M) r.ponto++;
+    if (v.na_regiao != null) { r.comReg++; if (v.na_regiao) r.regiao++; }
+    if (v.hora < r.ini) r.ini = v.hora; if (v.hora > r.fim) r.fim = v.hora;
+  }
+  const umDia = $("vis-ini").value === ($("vis-fim").value || $("vis-ini").value);
+  el.innerHTML = `<div class="kpis">
+      <div class="kpi"><span>Visitas</span><b>${dadosVisitas.length}</b></div>
+      <div class="kpi"><span>No ponto (até ${LONGE_M} m)</span><b>${pct(noPonto, dadosVisitas.length)}</b></div>
+      <div class="kpi"><span>Na própria região</span><b>${pct(naRegiao, comRegiao.length)}</b><em>pelo CEP do ponto</em></div></div>
+    <button type="button" class="primario" id="vis-mapa" style="width:100%">Ver ${umDia ? "o roteiro" : "as visitas"} no mapa</button>
+    ${camadaVisitas ? '<button type="button" class="fantasma" id="vis-tirar" style="width:100%;margin-top:6px">Tirar visitas do mapa</button>' : ""}
+    <h3>Por vendedor</h3>
+    <div class="rolagem"><table class="tabela"><thead><tr><th>Vendedor</th><th>Visitas</th><th>No ponto</th><th>Na região</th>${umDia ? "<th>Primeira</th><th>Última</th>" : ""}</tr></thead><tbody>
+    ${Object.entries(porVend).sort((a, b) => b[1].n - a[1].n).map(([n, r]) => `<tr><td>${esc(n)}</td><td>${r.n}</td><td>${pct(r.ponto, r.n)}</td><td>${pct(r.regiao, r.comReg)}</td>${umDia ? `<td>${horaBR(r.ini)}</td><td>${horaBR(r.fim)}</td>` : ""}</tr>`).join("")}
+    </tbody></table></div>
+    <h3>Visitas · ${dadosVisitas.length}</h3>
+    ${dadosVisitas.map((v) => `<div class="fu" style="border-left:4px solid ${v.distancia_m != null && v.distancia_m > LONGE_M ? "var(--cancelado)" : "#14336e"}">
+      <div class="nome">${esc(v.ponto || "Ponto")}</div>
+      <div class="sub">${dataBR(v.data)} ${horaBR(v.hora)} · ${esc(v.vendedor)} · ${esc(ROTULO_VISITA[v.tipo] || v.tipo)} · ${esc(v.resultado || "")}</div>
+      <div class="sub">${v.distancia_m == null ? "Sem distância" : v.distancia_m <= LONGE_M ? `No ponto (${v.distancia_m} m)` : `<b>Longe do ponto: ${km(v.distancia_m)}</b>`}
+        ${v.regiao_de ? ` · Região de ${esc(v.regiao_de)}${v.na_regiao ? "" : " (fora da região do vendedor)"}` : ""}${v.bairro ? " · " + esc(v.bairro) : ""}</div>
+      ${v.observacao ? `<p class="aviso">${esc(v.observacao)}</p>` : ""}</div>`).join("")}`;
+}
+
+function tirarVisitasDoMapa() {
+  if (camadaVisitas) { camadaVisitas.remove(); camadaVisitas = null; }
+  if (!$("folha-visitas").hidden) carregarVisitas();
+}
+
+function verVisitasNoMapa() {
+  tirarVisitasDoMapa();
+  const pts = dadosVisitas.filter((v) => v.latitude != null).slice().sort((a, b) => a.hora.localeCompare(b.hora));
+  if (!pts.length) return;
+  camadaVisitas = L.layerGroup().addTo(mapa);
+  const porVend = {};
+  pts.forEach((v) => (porVend[v.vendedor] ||= []).push(v));
+  for (const lista of Object.values(porVend)) {
+    if (lista.length > 1) L.polyline(lista.map((v) => [v.latitude, v.longitude]), { color: "#14336e", weight: 3, opacity: .6, dashArray: "6 6", interactive: false }).addTo(camadaVisitas);
+    lista.forEach((v, n) => L.marker([v.latitude, v.longitude], {
+      icon: L.divIcon({ className: "", iconSize: [26, 26], html: `<div style="width:26px;height:26px;border-radius:50%;background:${v.distancia_m != null && v.distancia_m > LONGE_M ? "var(--cancelado)" : "#14336e"};color:#fff;font:700 12px/26px var(--body);text-align:center;border:2px solid #fff">${n + 1}</div>` }),
+    }).bindTooltip(`${horaBR(v.hora)} · ${v.vendedor} · ${v.ponto || ""}`).addTo(camadaVisitas));
+  }
+  $("folha-visitas").hidden = true;
+  mapa.fitBounds(L.latLngBounds(pts.map((v) => [v.latitude, v.longitude])).pad(0.2));
+  $("resumo").textContent = `${pts.length} visitas no mapa (números = ordem do dia). Para tirar: Visitas > Tirar visitas do mapa.`;
+}
+
 // ---------- Painel ----------
 const META_MENSAL = 200;   // meta de contratos por mês (definida pelo Fábio)
 let dadosPainel = null;
@@ -1429,7 +1640,7 @@ function exportarTabelaPainel(id) {
 }
 
 // ---------- Follow-up ----------
-const hojeISO = () => new Date().toISOString().slice(0, 10);
+const hojeISO = () => new Date().toLocaleDateString("sv-SE");   // data local (AAAA-MM-DD), não a de Londres
 
 let ultimoFollow = [];
 function exportarFollow() {
@@ -1468,13 +1679,27 @@ async function contarFollow() {
   $("n-follow").textContent = n ? `· ${n}` : "";
 }
 
+let followBruto = [];
+const textoFollow = (o) => {
+  const p = o.prospects || {}, l = o.locais || {};
+  return semAcento([p.nome_fantasia, p.razao_social, p.bairro, p.cidade, p.telefone1, p.segmento, p.instagram,
+    l.cliente, l.razao_social, l.bairro, l.cidade, l.contato, l.instagram, o.cnpj, o.chave_local, o.destino,
+    o.observacao, o.origem, ROTULO_FUNIL[o.status], ...(o.anotacoes || []).map((a) => a.texto)].filter(Boolean).join(" "));
+};
 async function abrirFollow() {
   $("folha-follow").hidden = false;
   $("lista-follow").innerHTML = '<p class="sub">Carregando…</p>';
-  let { data, error } = await carregarFollow();
+  const { data, error } = await carregarFollow();
   if (error) { $("lista-follow").innerHTML = `<p class="erro">Não foi possível carregar: ${esc(error.message)}</p>`; return; }
+  followBruto = data || [];
+  mostrarFollow();
+}
+function mostrarFollow() {
+  let data = followBruto;
+  const termos = semAcento($("fu-busca").value.trim()).split(/\s+/).filter((w) => w.length >= 2);
+  if (termos.length) data = data.filter((o) => { const t = textoFollow(o); return termos.every((w) => t.includes(w)); });
   const hoje = hojeISO();
-  const origens = [...new Set(data.map((o) => o.origem || "Sem origem"))].sort();
+  const origens = [...new Set(followBruto.map((o) => o.origem || "Sem origem"))].sort();
   const filtro = estado.filtroOrigem && origens.includes(estado.filtroOrigem) ? estado.filtroOrigem : "";
   if (filtro) data = data.filter((o) => (o.origem || "Sem origem") === filtro);
   const cabecalho = `<label class="sub">Origem do lead <select id="fu-origem" class="chip"><option value="">Todas (${origens.length})</option>
@@ -1556,7 +1781,7 @@ async function acaoFollow(e) {
 }
 
 async function mudarStatusFollow(e) {
-  if (e.target.id === "fu-origem") { estado.filtroOrigem = e.target.value; abrirFollow(); return; }
+  if (e.target.id === "fu-origem") { estado.filtroOrigem = e.target.value; mostrarFollow(); return; }
   const sel = e.target.closest("[data-fu-status]"); if (!sel || !sel.value) return;
   const { error } = await filtrar(db.from("oportunidades").update({ status: sel.value, atualizado_em: new Date().toISOString() }), sel.dataset.fuStatus);
   if (!error && sel.dataset.fuStatus.startsWith("B:")) carregarBlindagem();
