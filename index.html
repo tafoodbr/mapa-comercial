@@ -176,7 +176,7 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v31.10-2100</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v02.11-2330</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <nav class="acoes-topo" aria-label="Telas">
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
@@ -597,6 +597,7 @@ function abrirFicha(d) {
   const bl = d.tipo === "LOCAL" ? blindagem.get(d.chave_local) : null;
   if (bl && ABERTOS.includes(bl.oportunidade_status)) carregarAnotacoes("B:" + d.chave_local);
   carregarProva(d);
+  carregarSocios(d);
   carregarRegiao(d);
   if (marcaSel) marcaSel.remove();
   marcaSel = L.circleMarker([d.latitude, d.longitude], { radius: 14, color: s.hex, weight: 3, fill: false, interactive: false }).addTo(mapa);
@@ -688,6 +689,43 @@ async function carregarProva(d) {
     : `<span class="sub">Nenhum cliente ativo em ${RAIO_PROVA / 1000} km. Sem prova social por aqui ainda.</span>`;
 }
 
+// Quadro de sócios (dados abertos da Receita, carga mensal). Fora da base: consulta na BrasilAPI, sem gravar.
+function blocoSocios(d) {
+  return `<details class="socios" style="margin-top:8px" open><summary><b>Sócios</b></summary>
+    <div id="socios-${idk(chaveDe(d))}"><span class="sub">Carregando…</span></div></details>`;
+}
+function listaSocios(lista) {
+  return `<ul class="hist">${lista.map((p) => `<li><b>${esc(p.nome)}</b>
+    <span class="sub">${[p.qualificacao, p.data_entrada ? "desde " + dataBR(p.data_entrada) : "", p.faixa_etaria].filter(Boolean).map(esc).join(" · ")}</span></li>`).join("")}</ul>`;
+}
+async function carregarSocios(d) {
+  const el = document.getElementById("socios-" + idk(chaveDe(d))); if (!el) return;
+  const args = d.tipo === "PROSPECT" ? { p_cnpj: d.cnpj } : { p_chave_local: d.chave_local };
+  const { data, error } = await db.rpc("socios_ponto", args);
+  if (error) { el.innerHTML = '<span class="sub">Sócios indisponíveis (falta rodar o SQL dos sócios).</span>'; return; }
+  if (data.socios.length) { el.innerHTML = listaSocios(data.socios) + '<span class="sub">Fonte: Receita Federal (dados abertos).</span>'; return; }
+  el.innerHTML = data.cnpj
+    ? `<span class="sub">Não está na nossa base mensal.</span>
+       <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-socios-receita="${esc(data.cnpj)}">Consultar sócios na Receita</button>`
+    : '<span class="sub">Sem CNPJ cadastrado para este ponto.</span>';
+}
+async function sociosReceita(b) {
+  const el = b.parentElement, cnpj = b.dataset.sociosReceita;
+  b.disabled = true; b.textContent = "Consultando…";
+  try {
+    const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+    if (!r.ok) throw new Error();
+    const qsa = (await r.json()).qsa || [];
+    el.innerHTML = qsa.length
+      ? listaSocios(qsa.map((q) => ({ nome: q.nome_socio, qualificacao: q.qualificacao_socio,
+          data_entrada: q.data_entrada_sociedade, faixa_etaria: q.faixa_etaria }))) + '<span class="sub">Fonte: Receita Federal, via BrasilAPI.</span>'
+      : '<span class="sub">A Receita não informa sócios para este CNPJ (comum em empresário individual).</span>';
+  } catch {
+    b.disabled = false; b.textContent = "Consultar sócios na Receita";
+    el.insertAdjacentHTML("beforeend", '<p class="aviso">Consulta indisponível agora. Tente de novo em instantes.</p>');
+  }
+}
+
 function blocoSituacao(d) {
   if (d.tipo === "LOCAL" && d.status_local === "ATIVO") return "";
   const ke = esc(chaveDe(d)), i = idk(chaveDe(d));
@@ -758,6 +796,7 @@ function popupLocal(d, s) {
     <p>${valor} · Modelo: ${esc(d.modelo || "—")}</p>
     <p>Instalação: ${dataBR(d.dt_instalacao)} · Vendedor: ${esc(d.vendedor || "—")}</p>
     <p>Contato: ${esc(d.contato || "—")}</p>${aproximado(d)}
+    ${blocoSocios(d)}
     ${blocoProva(d)}
     <div class="links"><a href="https://www.google.com/search?q=${busca("site:instagram.com " + d.cliente + " " + d.cidade)}" target="_blank" rel="noopener">Buscar no Instagram</a>
       <a href="https://www.google.com/maps/search/?api=1&query=${busca(d.cliente + " " + d.endereco + " " + d.cidade)}" target="_blank" rel="noopener">Google Maps</a></div>
@@ -842,6 +881,7 @@ function popupProspect(d, s) {
     <p>CNPJ: <b>${esc(fmtCnpj(d.cnpj))}</b></p>
     <p>Telefone: ${tel}</p>
     <p>${esc(d.porte || "—")} · ${d.anos_de_abertura ?? "—"} anos de CNPJ${d.unidades_na_regiao > 1 ? ` · ${d.unidades_na_regiao} unidades` : ""}</p>${aproximado(d)}
+    ${blocoSocios(d)}
     ${blocoProva(d)}
     <div class="links">${links}</div>
     ${blocoInstagram(d)}
@@ -886,6 +926,7 @@ async function salvarInstagram(k) {
 }
 
 async function ativarPeloBotao(e) {
+  if (e.target.closest("[data-socios-receita]")) return sociosReceita(e.target.closest("[data-socios-receita]"));
   if (e.target.closest("[data-ig-salvar]")) return salvarInstagram(e.target.closest("[data-ig-salvar]").dataset.igSalvar);
   if (e.target.closest("[data-whats]")) return abrirEnvio(e.target.closest("[data-whats]").dataset.whats, "WHATSAPP");
   if (e.target.closest("[data-email]")) return abrirEnvio(e.target.closest("[data-email]").dataset.email, "EMAIL");
