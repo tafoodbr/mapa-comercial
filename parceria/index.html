@@ -422,7 +422,7 @@ async function iniciar() {
   if (parceiro) {
     $("convite").innerHTML = "";
     $("convite").append("Convite de parceria de ", Object.assign(document.createElement("b"), { textContent: parceiro }), ".");
-    $("texto-adesao").textContent = `Você chegou por indicação de ${parceiro}. Ao fechar o contrato, ${parceiro} ganha desconto na mensalidade como agradecimento.`;
+    $("texto-adesao").textContent = `Você chegou por indicação de ${parceiro}. Ao fechar o contrato, ${parceiro} ganha desconto em uma mensalidade como agradecimento.`;
     document.title = `${parceiro} indicou você · RestoClean`;
   }
   if (!info.aberto) return fechado("Vagas preenchidas", "As vagas desta rodada de parcerias foram preenchidas pela nossa capacidade de produção. Fale com quem indicou você para saber da próxima rodada.");

@@ -763,7 +763,7 @@ function blocoParceria(d) {
   const i = idk("P:" + d.chave_local);
   return `<div class="fu" style="margin-top:10px;border-left:4px solid #0a6b86">
     <b>Link de parceria</b>
-    <div class="sub">O cliente indica amigos do segmento. A cada indicação que virar contrato, ele ganha 20% de desconto na mensalidade; 3 no mesmo ciclo deixam o mês grátis.</div>
+    <div class="sub">O cliente indica amigos do segmento. A cada indicação que virar contrato, ele ganha 20% de desconto em uma mensalidade; 3 no mesmo ciclo deixam o mês grátis.</div>
     <button type="button" class="fantasma" style="width:100%;margin-top:6px" data-parceria="${esc(d.chave_local)}">Gerar e copiar link de parceria</button>
     <p class="aviso" id="parcmsg-${i}"></p></div>`;
 }
@@ -776,7 +776,7 @@ async function gerarParceria(chave) {
   if (error) { msg.textContent = "Não foi possível gerar: " + error.message + " (falta rodar o SQL da indicação?)"; return; }
   const link = URL_PARCERIA + codigo;
   const texto = `Olá! Seu link de parceria com a RestoClean está pronto: ${link}\n\n` +
-    `Mande para amigos e colegas do segmento. Quando alguém indicado por você assinar contrato com a RestoClean, você ganha 20% de desconto na sua mensalidade. Com 3 contratos no mesmo mês, a mensalidade sai de graça.`;
+    `Mande para amigos e colegas do segmento. Quando alguém indicado por você assinar contrato com a RestoClean, você ganha 20% de desconto em uma mensalidade. Com 3 contratos no mesmo mês, a mensalidade sai de graça.`;
   let copiou = true;
   try { await navigator.clipboard.writeText(texto); } catch { copiou = false; }
   msg.innerHTML = `${copiou ? "Mensagem com o link copiada." : "Copie a mensagem abaixo."} Código <b>${esc(codigo)}</b>.
