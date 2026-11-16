@@ -176,7 +176,7 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v02.11-2330</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v16.11-seg</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <nav class="acoes-topo" aria-label="Telas">
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
@@ -185,6 +185,7 @@ select.chip { padding-right: 8px; }
     <button class="fantasma" id="btn-visitas" type="button">Visitas</button>
     <button class="fantasma" id="btn-painel" type="button">Painel</button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
+    <button class="fantasma" id="btn-senha" type="button">Senha</button>
     <button class="fantasma" id="btn-sair" type="button">Sair</button>
     </nav>
     <div class="busca">
@@ -261,6 +262,20 @@ select.chip { padding-right: 8px; }
     <button class="fantasma" type="button" id="exportar-indicacoes">Exportar</button>
     <button class="fantasma" type="button" id="fechar-indicacoes">Fechar</button></div>
   <div class="bloco" id="lista-indicacoes"><p class="sub">Carregando…</p></div>
+</section>
+
+<section class="folha" id="folha-senha" hidden>
+  <div class="folha-topo"><h2>Trocar senha</h2>
+    <button class="fantasma" type="button" id="fechar-senha">Fechar</button></div>
+  <form id="form-senha" class="bloco">
+    <p id="senha-aviso" class="sub" hidden style="margin:0">Primeiro acesso: crie a sua senha pessoal para continuar.</p>
+    <label>Nova senha (mínimo 8 caracteres) <input id="senha-nova" type="password" autocomplete="new-password" minlength="8" required></label>
+    <label>Repita a nova senha <input id="senha-rep" type="password" autocomplete="new-password" minlength="8" required></label>
+    <button class="primario" type="submit" id="salvar-senha">Salvar nova senha</button>
+    <p class="erro" id="erro-senha" hidden></p>
+    <h3>Segurança</h3>
+    <button class="fantasma" type="button" id="sair-todos">Sair de todos os aparelhos</button>
+  </form>
 </section>
 
 <section class="folha" id="folha-visitas" hidden>
@@ -397,12 +412,65 @@ $("form-login").addEventListener("submit", async (e) => {
   if (error) { $("erro-login").textContent = "E-mail ou senha incorretos. Confira e tente de novo."; $("erro-login").hidden = false; return; }
   abrirApp();
 });
-$("btn-sair").addEventListener("click", async () => { await db.auth.signOut(); location.reload(); });
-db.auth.getSession().then(({ data }) => { if (data.session) abrirApp(); });
+// Segurança: sai sozinho depois de 8 horas sem uso (vale também se o app ficar fechado).
+const LIMITE_INATIVO_MS = 8 * 60 * 60 * 1000;
+const CHAVE_USO = "va_ultimo_uso";
+const lerUso = () => { try { return Number(localStorage.getItem(CHAVE_USO)) || 0; } catch { return 0; } };
+const marcarUso = () => { try { localStorage.setItem(CHAVE_USO, String(Date.now())); } catch {} };
+async function sair(escopo = "local") {
+  try { await db.auth.signOut({ scope: escopo }); } catch {}
+  try { localStorage.removeItem(CHAVE_USO); } catch {}
+  location.reload();
+}
+function vigiarInatividade() {
+  let ultimoRegistro = 0;
+  const registrar = () => { const t = Date.now(); if (t - ultimoRegistro > 60000) { ultimoRegistro = t; marcarUso(); } };
+  ["pointerdown", "keydown", "touchstart", "wheel"].forEach((ev) => addEventListener(ev, registrar, { passive: true }));
+  const conferir = () => { if (Date.now() - lerUso() > LIMITE_INATIVO_MS) sair("local"); };
+  setInterval(conferir, 60000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) conferir(); });
+}
+$("btn-sair").addEventListener("click", () => sair("local"));
+db.auth.getSession().then(({ data }) => {
+  if (!data.session) return;
+  const uso = lerUso();
+  if (uso && Date.now() - uso > LIMITE_INATIVO_MS) { sair("local"); return; }
+  abrirApp();
+});
+
+// Troca de senha (obrigatória no primeiro acesso)
+function abrirSenha(obrigatoria) {
+  $("folha-senha").hidden = false;
+  $("senha-aviso").hidden = !obrigatoria;
+  $("fechar-senha").hidden = !!obrigatoria;
+  $("erro-senha").hidden = true;
+  $("senha-nova").value = ""; $("senha-rep").value = "";
+}
+$("btn-senha").addEventListener("click", () => abrirSenha(false));
+$("fechar-senha").addEventListener("click", () => { $("folha-senha").hidden = true; });
+$("sair-todos").addEventListener("click", () => {
+  if (confirm("Encerrar a sessão em todos os aparelhos (celular, computador)? Você vai precisar entrar de novo.")) sair("global");
+});
+$("form-senha").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const nova = $("senha-nova").value, rep = $("senha-rep").value, erro = $("erro-senha");
+  erro.hidden = true;
+  if (nova.length < 8) { erro.textContent = "A senha precisa ter pelo menos 8 caracteres."; erro.hidden = false; return; }
+  if (nova !== rep) { erro.textContent = "As duas senhas não são iguais."; erro.hidden = false; return; }
+  $("salvar-senha").disabled = true;
+  const { error } = await db.auth.updateUser({ password: nova, data: { senha_definida: true } });
+  $("salvar-senha").disabled = false;
+  if (error) { erro.textContent = "Não foi possível trocar a senha: " + error.message; erro.hidden = false; return; }
+  $("folha-senha").hidden = true;
+  alertaSenha();
+});
+function alertaSenha() { $("resumo").textContent = "Senha trocada com sucesso."; }
 
 function abrirApp() {
   if (mapa) return;
   $("login").hidden = true; $("app").hidden = false;
+  marcarUso(); vigiarInatividade();
+  db.auth.getUser().then(({ data }) => { if (data.user && !data.user.user_metadata?.senha_definida) abrirSenha(true); });
   mapa = L.map("mapa", { zoomControl: false }).setView([-23.55, -46.63], 13);
   L.control.zoom({ position: "topright" }).addTo(mapa);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -1626,7 +1694,7 @@ function verVisitasNoMapa() {
     if (lista.length > 1) L.polyline(lista.map((v) => [v.latitude, v.longitude]), { color: "#14336e", weight: 3, opacity: .6, dashArray: "6 6", interactive: false }).addTo(camadaVisitas);
     lista.forEach((v, n) => L.marker([v.latitude, v.longitude], {
       icon: L.divIcon({ className: "", iconSize: [26, 26], html: `<div style="width:26px;height:26px;border-radius:50%;background:${v.distancia_m != null && v.distancia_m > LONGE_M ? "var(--cancelado)" : "#14336e"};color:#fff;font:700 12px/26px var(--body);text-align:center;border:2px solid #fff">${n + 1}</div>` }),
-    }).bindTooltip(`${horaBR(v.hora)} · ${v.vendedor} · ${v.ponto || ""}`).addTo(camadaVisitas));
+    }).bindTooltip(`${esc(horaBR(v.hora))} · ${esc(v.vendedor)} · ${esc(v.ponto || "")}`).addTo(camadaVisitas));
   }
   $("folha-visitas").hidden = true;
   mapa.fitBounds(L.latLngBounds(pts.map((v) => [v.latitude, v.longitude])).pad(0.2));
