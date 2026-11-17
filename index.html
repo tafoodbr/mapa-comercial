@@ -93,6 +93,7 @@ select.chip { padding-right: 8px; }
 .folha select, .folha textarea { padding: 11px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: inherit; color: inherit; }
 .duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .folha form, .folha .bloco { max-width: 560px; display: grid; gap: 10px; }
+.termo p { margin: 0 0 6px; font-size: 14px; line-height: 1.5; }
 .folha h3 { font: 600 14px/1.2 var(--display); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 14px 0 4px; }
 .fu { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 6px; }
 .fu .acoes { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -176,7 +177,7 @@ select.chip { padding-right: 8px; }
 <section id="app" hidden>
   <header>
     <img src="logo-64.png" alt="Vendas Atômicas" width="30" height="30" style="border-radius:50%;flex:none">
-    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v16.11-seg</small></h1>
+    <h1>Mapa Comercial <small class="sub" style="font:500 11px var(--body)">v17.11-usu</small></h1>
     <button class="fantasma destaque" id="btn-novo" type="button">+ Novo ponto</button>
     <nav class="acoes-topo" aria-label="Telas">
     <button class="fantasma" id="btn-follow" type="button">Follow-up <span id="n-follow"></span></button>
@@ -185,6 +186,7 @@ select.chip { padding-right: 8px; }
     <button class="fantasma" id="btn-visitas" type="button">Visitas</button>
     <button class="fantasma" id="btn-painel" type="button">Painel</button>
     <button class="fantasma" id="btn-local" type="button">Localizar</button>
+    <button class="fantasma" id="btn-usuarios" type="button" hidden>Usuários</button>
     <button class="fantasma" id="btn-senha" type="button">Senha</button>
     <button class="fantasma" id="btn-sair" type="button">Sair</button>
     </nav>
@@ -262,6 +264,58 @@ select.chip { padding-right: 8px; }
     <button class="fantasma" type="button" id="exportar-indicacoes">Exportar</button>
     <button class="fantasma" type="button" id="fechar-indicacoes">Fechar</button></div>
   <div class="bloco" id="lista-indicacoes"><p class="sub">Carregando…</p></div>
+</section>
+
+<section class="folha" id="folha-termo" hidden>
+  <div class="folha-topo"><h2>Termo de uso e privacidade</h2></div>
+  <div class="bloco termo">
+    <p class="sub" style="margin:0">Versão <b id="termo-versao"></b>. Leia e aceite para usar o Mapa Comercial.</p>
+    <h3>1. O que é o Mapa Comercial</h3>
+    <p>Ferramenta interna da RestoClean do Brasil para a equipe comercial: clientes, prospects, oportunidades, visitas e indicações. O acesso é pessoal, por login e senha.</p>
+    <h3>2. Seu login é pessoal e intransferível</h3>
+    <p>Não compartilhe a sua senha. Tudo o que for feito com o seu login fica registrado em seu nome. Em caso de perda do celular ou suspeita de uso indevido, troque a senha e use "Sair de todos os aparelhos", e avise o administrador.</p>
+    <h3>3. Os dados são confidenciais</h3>
+    <p>As informações de clientes, contratos, valores, sócios e contatos pertencem à RestoClean e só podem ser usadas para o trabalho comercial da empresa. É proibido copiar, exportar, fotografar ou repassar esses dados a terceiros, a concorrentes ou para uso pessoal, durante e depois do vínculo com a empresa.</p>
+    <h3>4. Localização</h3>
+    <p>O app usa a localização do aparelho para mostrar os pontos ao seu redor. A posição só é gravada quando você toca em "Registrar visita", junto com a distância até o ponto, para a gestão das visitas. Não há rastreamento contínuo.</p>
+    <h3>5. Registro de uso</h3>
+    <p>O sistema registra acessos, visitas, anotações, envios e mudanças de situação, com data e usuário, para controle e segurança.</p>
+    <h3>6. Proteção de dados (LGPD, Lei 13.709/2018)</h3>
+    <p>Os dados pessoais de clientes, prospects e da equipe são tratados para a execução de contratos e o legítimo interesse comercial da RestoClean, com acesso restrito por perfil e por estado, e protegidos por login e regras de acesso no banco. Dúvidas ou pedidos sobre dados pessoais: fale com o administrador do sistema.</p>
+    <h3>7. Encerramento do acesso</h3>
+    <p>O acesso pode ser suspenso ou encerrado a qualquer momento, e é encerrado no fim do vínculo com a empresa.</p>
+    <label style="display:flex;gap:10px;align-items:flex-start;color:inherit;font-size:14px"><input type="checkbox" id="termo-ok" style="width:auto;margin-top:2px"> Li e aceito o termo de uso, confidencialidade e privacidade.</label>
+    <button class="primario" type="button" id="termo-aceitar" disabled>Aceitar e continuar</button>
+    <button class="fantasma" type="button" id="termo-sair">Não aceito (sair)</button>
+    <p class="erro" id="erro-termo" hidden></p>
+  </div>
+</section>
+
+<section class="folha" id="folha-usuarios" hidden>
+  <div class="folha-topo"><h2>Usuários</h2>
+    <button class="fantasma" type="button" id="usu-novo">+ Novo usuário</button>
+    <button class="fantasma" type="button" id="fechar-usuarios">Fechar</button></div>
+  <form id="form-usuario" class="bloco" hidden>
+    <h3 id="usu-titulo">Novo usuário</h3>
+    <input type="hidden" id="usu-id">
+    <label>Nome (igual à coluna VENDEDOR da base) <input id="usu-nome" list="usu-vendedores" autocomplete="off" required></label>
+    <datalist id="usu-vendedores"></datalist>
+    <label id="usu-email-l">E-mail (login) <input id="usu-email" type="email" autocomplete="off"></label>
+    <label>Perfil <select id="usu-perfil">
+      <option value="VENDEDOR">VENDEDOR — carteira completa; colegas só a cor no mapa</option>
+      <option value="GESTOR">GESTOR — equipe toda, nos estados marcados</option>
+      <option value="ADMIN">ADMIN — tudo, inclusive usuários</option></select></label>
+    <div><span class="sub">Estados</span><div class="linha" id="usu-ufs" style="gap:12px;flex-wrap:wrap;margin-top:4px"></div></div>
+    <label id="usu-ativo-l" style="display:flex;gap:8px;align-items:center;color:inherit"><input type="checkbox" id="usu-ativo" style="width:auto"> Ativo (desmarcar bloqueia o login)</label>
+    <label id="usu-senha-l">Senha provisória (a pessoa troca no 1º acesso)
+      <span style="display:flex;gap:8px"><input id="usu-senha" autocomplete="off" style="flex:1"><button class="fantasma" type="button" id="usu-gerar">Gerar</button></span></label>
+    <button class="primario" type="submit" id="usu-salvar">Salvar</button>
+    <button class="fantasma" type="button" id="usu-redefinir" hidden>Redefinir senha com a provisória acima</button>
+    <button class="fantasma" type="button" id="usu-cancelar">Cancelar</button>
+    <p class="erro" id="erro-usu" hidden></p>
+    <p class="sub" id="ok-usu" hidden style="margin:0"></p>
+  </form>
+  <div id="lista-usuarios" class="bloco" style="margin-top:12px">Carregando…</div>
 </section>
 
 <section class="folha" id="folha-senha" hidden>
@@ -466,11 +520,135 @@ $("form-senha").addEventListener("submit", async (e) => {
 });
 function alertaSenha() { $("resumo").textContent = "Senha trocada com sucesso."; }
 
+// Termo de uso / LGPD (aceite obrigatório; mudar a versão pede novo aceite de todos)
+const TERMO_VERSAO = "1.0 (17/11/2026)";
+let meuCadastro = null;
+async function conferirAcesso() {
+  const { data, error } = await db.rpc("meu_cadastro");
+  if (error) { conferirSenha(); return; } // banco ainda sem a parte nova: segue sem o termo
+  meuCadastro = (data && data[0]) || null;
+  if (!meuCadastro) { $("resumo").textContent = "Seu login não está ligado a um cadastro ativo da equipe. Fale com o administrador."; return; }
+  $("btn-usuarios").hidden = meuCadastro.perfil !== "ADMIN";
+  if (meuCadastro.termo_versao !== TERMO_VERSAO) { abrirTermo(); return; }
+  conferirSenha();
+}
+function conferirSenha() {
+  db.auth.getUser().then(({ data }) => { if (data.user && !data.user.user_metadata?.senha_definida) abrirSenha(true); });
+}
+function abrirTermo() {
+  $("termo-versao").textContent = TERMO_VERSAO;
+  $("termo-ok").checked = false; $("termo-aceitar").disabled = true; $("erro-termo").hidden = true;
+  $("folha-termo").hidden = false;
+}
+$("termo-ok").addEventListener("change", () => { $("termo-aceitar").disabled = !$("termo-ok").checked; });
+$("termo-sair").addEventListener("click", () => sair("local"));
+$("termo-aceitar").addEventListener("click", async () => {
+  $("termo-aceitar").disabled = true;
+  const { error } = await db.rpc("aceitar_termo", { p_versao: TERMO_VERSAO, p_aparelho: navigator.userAgent });
+  if (error) { $("erro-termo").textContent = "Não foi possível registrar o aceite: " + error.message; $("erro-termo").hidden = false; $("termo-aceitar").disabled = false; return; }
+  $("folha-termo").hidden = true;
+  if (meuCadastro) meuCadastro.termo_versao = TERMO_VERSAO;
+  conferirSenha();
+});
+
+// Usuários (só ADMIN). Login e senha são criados pela função segura "usuarios" no Supabase.
+const UFS_MAPA = ["SP", "RJ", "RS", "BA"];
+let listaUsuarios = [];
+async function chamarUsuarios(corpo) {
+  const { data, error } = await db.functions.invoke("usuarios", { body: corpo });
+  if (error) {
+    let msg = error.message;
+    try { const j = await error.context.json(); if (j && j.erro) msg = j.erro; } catch {}
+    throw new Error(msg);
+  }
+  if (data && data.erro) throw new Error(data.erro);
+  return data;
+}
+const senhaProvisoria = () => {
+  const c = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  const a = new Uint32Array(10); crypto.getRandomValues(a);
+  return Array.from(a, (n) => c[n % c.length]).join("");
+};
+$("btn-usuarios").addEventListener("click", abrirUsuarios);
+$("fechar-usuarios").addEventListener("click", () => { $("folha-usuarios").hidden = true; });
+$("usu-gerar").addEventListener("click", () => { $("usu-senha").value = senhaProvisoria(); });
+$("usu-cancelar").addEventListener("click", () => { $("form-usuario").hidden = true; });
+$("usu-novo").addEventListener("click", () => formUsuario(null));
+async function abrirUsuarios() {
+  $("folha-usuarios").hidden = false; $("form-usuario").hidden = true;
+  if (!$("usu-vendedores").children.length) {
+    const v = await db.rpc("vendedores_resumo");
+    $("usu-vendedores").innerHTML = (v.data || []).map((x) => `<option value="${esc(x.vendedor)}">`).join("");
+  }
+  await carregarUsuarios();
+}
+async function carregarUsuarios() {
+  const alvo = $("lista-usuarios");
+  alvo.textContent = "Carregando…";
+  try {
+    listaUsuarios = (await chamarUsuarios({ acao: "listar" })).usuarios || [];
+  } catch (e) { alvo.innerHTML = `<p class="erro">${esc(e.message)}</p>`; return; }
+  if (!listaUsuarios.length) { alvo.textContent = "Nenhum usuário."; return; }
+  alvo.innerHTML = listaUsuarios.map((u, i) => `<div class="cartao" style="max-width:none;padding:12px;gap:4px;${u.ativo ? "" : "opacity:.55"}">
+    <b>${esc(u.nome)}</b>
+    <span class="sub">${esc(u.email || "sem e-mail")} · ${esc(u.perfil)} · ${u.perfil === "ADMIN" ? "todos os estados" : esc((u.ufs || []).join(", "))}${u.ativo ? "" : " · BLOQUEADO"}</span>
+    <span class="sub">Termo: ${u.termo_versao ? "aceito em " + esc(new Date(u.termo_aceito_em).toLocaleString("pt-BR")) : "ainda não aceitou"} · Último acesso: ${u.ultimo_acesso ? esc(new Date(u.ultimo_acesso).toLocaleString("pt-BR")) : "nunca"}</span>
+    <button class="fantasma" type="button" data-editar="${i}" style="justify-self:start">Editar</button></div>`).join("");
+}
+$("lista-usuarios").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-editar]");
+  if (b) formUsuario(listaUsuarios[Number(b.dataset.editar)]);
+});
+function formUsuario(u) {
+  const novo = !u;
+  $("form-usuario").hidden = false; $("erro-usu").hidden = true; $("ok-usu").hidden = true;
+  $("usu-titulo").textContent = novo ? "Novo usuário" : "Editar " + u.nome;
+  $("usu-id").value = novo ? "" : u.id;
+  $("usu-nome").value = novo ? "" : u.nome;
+  $("usu-email").value = novo ? "" : (u.email || "");
+  $("usu-email").disabled = !novo;
+  $("usu-perfil").value = novo ? "VENDEDOR" : u.perfil;
+  const marcadas = novo ? ["SP"] : (u.ufs || []);
+  $("usu-ufs").innerHTML = UFS_MAPA.map((uf) => `<label style="display:flex;gap:6px;align-items:center;color:inherit;font-size:14px"><input type="checkbox" value="${uf}" style="width:auto"${marcadas.includes(uf) ? " checked" : ""}> ${uf}</label>`).join("");
+  $("usu-ativo-l").hidden = novo; $("usu-ativo").checked = novo ? true : !!u.ativo;
+  $("usu-senha").value = novo ? senhaProvisoria() : "";
+  $("usu-redefinir").hidden = novo;
+  $("form-usuario").scrollIntoView({ behavior: "smooth" });
+}
+const ufsMarcadas = () => [...$("usu-ufs").querySelectorAll("input:checked")].map((x) => x.value);
+function avisoUsu(msg, ok) {
+  $("erro-usu").hidden = !!ok; $("ok-usu").hidden = !ok;
+  (ok ? $("ok-usu") : $("erro-usu")).textContent = msg;
+}
+$("form-usuario").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = $("usu-id").value;
+  const corpo = id
+    ? { acao: "atualizar", id, nome: $("usu-nome").value, perfil: $("usu-perfil").value, ufs: ufsMarcadas(), ativo: $("usu-ativo").checked }
+    : { acao: "criar", nome: $("usu-nome").value, email: $("usu-email").value, perfil: $("usu-perfil").value, ufs: ufsMarcadas(), senha: $("usu-senha").value };
+  $("usu-salvar").disabled = true;
+  try {
+    await chamarUsuarios(corpo);
+    avisoUsu(id ? "Alterações salvas." : `Usuário criado. Envie para a pessoa: login ${corpo.email} e senha provisória ${corpo.senha} (ela troca no 1º acesso).`, true);
+    if (!id) $("usu-id").value = "";
+    await carregarUsuarios();
+  } catch (err) { avisoUsu(err.message, false); }
+  $("usu-salvar").disabled = false;
+});
+$("usu-redefinir").addEventListener("click", async () => {
+  const senha = $("usu-senha").value || senhaProvisoria();
+  $("usu-senha").value = senha;
+  try {
+    await chamarUsuarios({ acao: "redefinir_senha", id: $("usu-id").value, senha });
+    avisoUsu(`Senha redefinida. Nova senha provisória: ${senha} (a pessoa troca no próximo acesso).`, true);
+  } catch (err) { avisoUsu(err.message, false); }
+});
+
 function abrirApp() {
   if (mapa) return;
   $("login").hidden = true; $("app").hidden = false;
   marcarUso(); vigiarInatividade();
-  db.auth.getUser().then(({ data }) => { if (data.user && !data.user.user_metadata?.senha_definida) abrirSenha(true); });
+  conferirAcesso();
   mapa = L.map("mapa", { zoomControl: false }).setView([-23.55, -46.63], 13);
   L.control.zoom({ position: "topright" }).addTo(mapa);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -569,12 +747,22 @@ async function buscar(lat, lon, ehVoce) {
   mapa.fitBounds(circulo.getBounds(), { padding: [10, 10] });
   $("resumo").textContent = "Buscando…";
   const args = { p_lat: lat, p_lon: lon, p_raio_m: estado.raio };
-  const [loc, pro] = await Promise.all([db.rpc("locais_proximos", args), db.rpc("prospects_proximos", { ...args, p_nota_min: estado.notaMin })]);
+  const [loc, pro, res] = await Promise.all([db.rpc("locais_proximos", args), db.rpc("prospects_proximos", { ...args, p_nota_min: estado.notaMin }),
+    db.rpc("pontos_restritos", args)]);
   if (loc.error) { $("resumo").textContent = "Não foi possível buscar os clientes: " + loc.error.message; return; }
-  const prospects = pro.error ? [] : (pro.data || []);
+  // Pontos de outros vendedores: aparecem com a cor, sem detalhes e sem ações (função pontos_restritos).
+  const restritos = res.error ? [] : (res.data || []).map((r) => r.tipo === "LOCAL"
+    ? { tipo: "LOCAL", restrito: true, chave_local: r.chave, cliente: r.nome, bairro: r.bairro, cidade: r.cidade, status_local: r.status_local,
+        oportunidade_status: r.oportunidade_status, vendedor: r.dono, latitude: r.latitude, longitude: r.longitude, distancia_m: r.distancia_m }
+    : { tipo: "PROSPECT", restrito: true, cnpj: r.chave, nome: r.nome, cliente: r.nome, bairro: r.bairro, cidade: r.cidade,
+        oportunidade_status: r.oportunidade_status, dono: r.dono, latitude: r.latitude, longitude: r.longitude, distancia_m: r.distancia_m });
+  const cnpjRestrito = new Set(restritos.filter((r) => r.tipo === "PROSPECT").map((r) => r.cnpj));
+  const meusLocais = new Set((loc.data || []).map((d) => d.chave_local));
+  const prospects = (pro.error ? [] : (pro.data || [])).filter((d) => !cnpjRestrito.has(d.cnpj));
   estado.dados = [
     ...(loc.data || []).map((d) => ({ ...d, tipo: "LOCAL" })),
     ...prospects.map((d) => { const nome = fantasia(d.nome, d.razao_social); return { ...d, nome, tipo: "PROSPECT", cliente: nome }; }),
+    ...restritos.filter((r) => r.tipo === "PROSPECT" || !meusLocais.has(r.chave_local)),
   ].sort((x, y) => x.distancia_m - y.distancia_m);
   estado.avisoProspects = pro.error ? "Prospects indisponíveis: " + pro.error.message : "";
   desenhar();
@@ -622,7 +810,9 @@ function desenhar() {
     d._m = L.circleMarker([d.latitude, d.longitude], {
       renderer: RENDER_PONTOS, radius: ehP ? 7 : 8, color: "#fff", weight: 2, fillColor: s.hex, fillOpacity: 0.95, bubblingMouseEvents: false,
     }).on("click", () => abrirFicha(d)).addTo(camada);
-    const sub = ehP
+    const sub = d.restrito
+      ? (ehP ? `Em prospecção por ${esc(d.dono)}` : `Carteira de ${esc(d.vendedor || "outro vendedor")}`) + (d.bairro ? " · " + esc(d.bairro) : "")
+      : ehP
       ? `${d.anos_de_abertura === 0 ? "<b>NOVO</b> · " : ""}${esc(d.segmento)} · ${d.nota == null ? "cadastrado em campo" : "nota " + d.nota}${d.expansao_rede ? " · rede de cliente" : ""} · ${esc(d.bairro)}`
       : `${esc(d.endereco)} · ${esc(d.bairro)}${d.vendedor ? " · " + esc(d.vendedor) : ""}`;
     itens.push(`<li data-i="${i}"><span class="ponto" style="background:${s.cor}"></span><div><div class="nome">${esc(d.cliente || d.endereco)}</div><div class="sub">${sub}</div></div><div class="dist">${d.distancia_m == null ? esc(d.cidade || "") : km(d.distancia_m)}</div></li>`);
@@ -659,6 +849,18 @@ function abrirFicha(d) {
   if (modoNovo) sairModoNovo();
   const s = STATUS[grupo(d)] || STATUS.OUTROS;
   fichaChave = chaveDe(d);
+  if (d.restrito) {
+    const situacao = d.tipo === "PROSPECT" ? (ROTULO_FUNIL[d.oportunidade_status] || "Em prospecção") : s.nome;
+    $("ficha-corpo").innerHTML = `<div style="display:grid;gap:6px">
+      <div style="display:flex;gap:8px;align-items:center"><span class="ponto" style="background:${s.cor}"></span><b>${esc(d.cliente)}</b></div>
+      <span class="sub">${esc(situacao)}${d.bairro ? " · " + esc(d.bairro) : ""}${d.cidade ? " · " + esc(d.cidade) : ""}</span>
+      <span class="sub">${d.tipo === "PROSPECT" ? "Em prospecção por <b>" + esc(d.dono) + "</b>" : "Carteira de <b>" + esc(d.vendedor || "outro vendedor") + "</b>"}.
+        Detalhes e ações ficam só com o responsável.</span></div>`;
+    $("ficha").hidden = false;
+    if (marcaSel) marcaSel.remove();
+    marcaSel = L.circleMarker([d.latitude, d.longitude], { radius: 14, color: s.hex, weight: 3, fill: false, interactive: false }).addTo(mapa);
+    return;
+  }
   $("ficha-corpo").innerHTML = d.tipo === "PROSPECT" ? popupProspect(d, s) : popupLocal(d, s);
   $("ficha").hidden = false;
   if (d.oportunidade_status) carregarAnotacoes(fichaChave);
