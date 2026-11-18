@@ -312,6 +312,7 @@ select.chip { padding-right: 8px; }
     <button class="primario" type="submit" id="usu-salvar">Salvar</button>
     <button class="fantasma" type="button" id="usu-redefinir" hidden>Redefinir senha com a provisória acima</button>
     <button class="fantasma" type="button" id="usu-cancelar">Cancelar</button>
+    <button class="fantasma" type="button" id="usu-excluir" hidden style="color:#c0392b;border-color:#c0392b">Excluir usuário</button>
     <p class="erro" id="erro-usu" hidden></p>
     <p class="sub" id="ok-usu" hidden style="margin:0"></p>
   </form>
@@ -613,6 +614,7 @@ function formUsuario(u) {
   $("usu-ativo-l").hidden = novo; $("usu-ativo").checked = novo ? true : !!u.ativo;
   $("usu-senha").value = novo ? senhaProvisoria() : "";
   $("usu-redefinir").hidden = novo;
+  $("usu-excluir").hidden = novo;
   $("form-usuario").scrollIntoView({ behavior: "smooth" });
 }
 const ufsMarcadas = () => [...$("usu-ufs").querySelectorAll("input:checked")].map((x) => x.value);
@@ -634,6 +636,15 @@ $("form-usuario").addEventListener("submit", async (e) => {
     await carregarUsuarios();
   } catch (err) { avisoUsu(err.message, false); }
   $("usu-salvar").disabled = false;
+});
+$("usu-excluir").addEventListener("click", async () => {
+  const u = listaUsuarios.find((x) => x.id === $("usu-id").value); if (!u) return;
+  if (!confirm(`Excluir ${u.nome} (${u.email || "sem e-mail"})? O login é apagado e não dá para desfazer.`)) return;
+  try {
+    await chamarUsuarios({ acao: "excluir", id: u.id });
+    $("form-usuario").hidden = true;
+    await carregarUsuarios();
+  } catch (err) { avisoUsu(err.message, false); }
 });
 $("usu-redefinir").addEventListener("click", async () => {
   const senha = $("usu-senha").value || senhaProvisoria();
